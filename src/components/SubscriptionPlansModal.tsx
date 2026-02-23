@@ -141,7 +141,7 @@ function PlanCard({ planId, isCurrent, isLoading, isPopular, disabled, onSelect 
 
   return (
     <div
-      className={`relative flex flex-col rounded-2xl border backdrop-blur-md transition-all duration-300 overflow-hidden ${style.bg} ${style.border} ${style.glow} ${
+      className={`relative flex flex-col h-full rounded-2xl border backdrop-blur-md transition-all duration-300 overflow-hidden ${style.bg} ${style.border} ${style.glow} ${
         !isCurrent ? 'hover:border-[#8C52FF]/30 hover:shadow-[0_8px_32px_rgba(140,82,255,0.12)]' : ''
       }`}
     >
@@ -691,7 +691,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
               {/* Plan cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
                 {PAID_PLANS.map((planId) => (
-                  <div key={planId}>
+                  <div key={planId} className="flex">
                     <PlanCard
                       planId={planId}
                       isCurrent={currentPlan === planId}
