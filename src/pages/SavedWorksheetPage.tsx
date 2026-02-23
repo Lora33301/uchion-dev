@@ -72,7 +72,7 @@ export default function SavedWorksheetPage() {
   const [pdfLoading, setPdfLoading] = useState(false)
   const [showPlansModal, setShowPlansModal] = useState(false)
 
-  const canUseStyles = user?.limits?.pdfTemplateStyles !== false
+  const canUseStyles = user?.limits?.pdfTemplateStyles ?? false
 
   useEffect(() => {
     if (status === 'unauthenticated') {

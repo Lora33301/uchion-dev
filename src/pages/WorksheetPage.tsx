@@ -66,7 +66,7 @@ export default function WorksheetPage() {
   const [pdfLoading, setPdfLoading] = useState(false)
   const [showPlansModal, setShowPlansModal] = useState(false)
 
-  const canUseStyles = user?.limits?.pdfTemplateStyles !== false
+  const canUseStyles = user?.limits?.pdfTemplateStyles ?? false
 
   // Worksheet editor hook
   const editor = useWorksheetEditor({
