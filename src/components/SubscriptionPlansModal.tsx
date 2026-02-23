@@ -21,10 +21,26 @@ function CheckIcon({ className = "w-4 h-4" }: { className?: string }) {
   )
 }
 
+function XMarkIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
 function WarningIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+  )
+}
+
+function CrownIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M2.25 6.75l4.5 4.5 5.25-7.5 5.25 7.5 4.5-4.5-1.5 12h-16.5l-1.5-12z" />
     </svg>
   )
 }
@@ -37,96 +53,158 @@ function formatDate(dateStr: string | null): string {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+// ==================== PLAN FEATURES ====================
+
+interface PlanFeature {
+  text: string
+  available: boolean
+  highlight?: boolean
+}
+
+const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
+  free: [],
+  starter: [
+    { text: '25 генераций в месяц', available: true, highlight: true },
+    { text: 'Модель AI: GPT-4.1', available: true },
+    { text: 'PDF без водяного знака', available: true },
+    { text: 'До 5 перегенераций/день', available: true },
+    { text: 'Редактирование листов', available: true },
+    { text: '5 папок, до 20 листов', available: true },
+    { text: 'Презентации', available: false },
+  ],
+  teacher: [
+    { text: '60 генераций в месяц', available: true, highlight: true },
+    { text: 'Модель AI: GPT-4.1', available: true },
+    { text: 'PDF без водяного знака', available: true },
+    { text: 'До 10 перегенераций/день', available: true },
+    { text: 'Редактирование листов', available: true },
+    { text: '10 папок, до 50 листов', available: true },
+    { text: 'Презентации (12 слайдов)', available: true },
+    { text: 'Хранилище: 30 презентаций', available: true },
+  ],
+  expert: [
+    { text: '120 генераций в месяц', available: true, highlight: true },
+    { text: 'Модель AI: GPT-4.1', available: true },
+    { text: 'PDF без водяного знака', available: true },
+    { text: 'Безлимит перегенераций', available: true },
+    { text: 'Редактирование листов', available: true },
+    { text: '10 папок, до 100 листов', available: true },
+    { text: 'Презентации (12/18/24 сл.)', available: true },
+    { text: 'Хранилище: 60 презентаций', available: true },
+    { text: 'Ранний доступ к новинкам', available: true },
+  ],
+}
+
 // ==================== PLAN CARD ====================
 
 interface PlanCardProps {
   planId: SubscriptionPlanId
   isCurrent: boolean
   isLoading: boolean
+  isPopular?: boolean
+  disabled: boolean
   onSelect: (planId: SubscriptionPlanId) => void
 }
 
-function PlanCard({ planId, isCurrent, isLoading, onSelect }: PlanCardProps) {
+function PlanCard({ planId, isCurrent, isLoading, isPopular, disabled, onSelect }: PlanCardProps) {
   const plan = SUBSCRIPTION_PLANS[planId]
+  const features = PLAN_FEATURES[planId]
 
-  const PLAN_HIGHLIGHTS: Record<SubscriptionPlanId, string[]> = {
-    free: ['5 генераций', '2 папки'],
-    starter: [`${plan.generationsPerPeriod} генераций/мес`, `${plan.folders} папок`, 'Модели GPT-4.1'],
-    teacher: [`${plan.generationsPerPeriod} генераций/мес`, `${plan.folders} папок`, 'Модели GPT-4.1'],
-    expert: [`${plan.generationsPerPeriod} генераций/мес`, `${plan.folders} папок`, 'Модели GPT-4.1'],
-  }
-
-  const highlights = PLAN_HIGHLIGHTS[planId]
-
-  const PLAN_COLORS: Record<SubscriptionPlanId, { gradient: string; border: string; badge: string }> = {
-    free: {
-      gradient: 'from-slate-50 to-white',
-      border: 'border-slate-200',
-      badge: 'bg-slate-100 text-slate-600',
-    },
+  const cardStyles: Record<string, {
+    border: string
+    glow: string
+    bg: string
+    priceBg: string
+    btnGradient: string
+  }> = {
     starter: {
-      gradient: 'from-purple-50/80 to-white',
-      border: 'border-purple-200',
-      badge: 'bg-purple-100 text-[#8C52FF]',
+      border: isCurrent ? 'border-[#8C52FF]/60' : 'border-white/40',
+      glow: isCurrent ? 'shadow-[0_0_24px_rgba(140,82,255,0.2)]' : '',
+      bg: 'bg-white/60',
+      priceBg: 'from-[#8C52FF]/5 to-transparent',
+      btnGradient: 'from-[#8C52FF] to-[#A16BFF]',
     },
     teacher: {
-      gradient: 'from-violet-50/80 to-white',
-      border: 'border-violet-300',
-      badge: 'bg-violet-100 text-violet-700',
+      border: isCurrent ? 'border-violet-400/60' : 'border-white/40',
+      glow: isCurrent ? 'shadow-[0_0_24px_rgba(139,92,246,0.25)]' : '',
+      bg: 'bg-white/60',
+      priceBg: 'from-violet-500/5 to-transparent',
+      btnGradient: 'from-violet-500 to-purple-500',
     },
     expert: {
-      gradient: 'from-indigo-50/80 to-white',
-      border: 'border-indigo-300',
-      badge: 'bg-indigo-100 text-indigo-700',
+      border: isCurrent ? 'border-indigo-400/60' : 'border-white/40',
+      glow: isCurrent ? 'shadow-[0_0_24px_rgba(99,102,241,0.25)]' : '',
+      bg: 'bg-white/60',
+      priceBg: 'from-indigo-500/5 to-transparent',
+      btnGradient: 'from-indigo-500 to-violet-500',
     },
   }
 
-  const colors = PLAN_COLORS[planId]
+  const style = cardStyles[planId] || cardStyles.starter
 
   return (
     <div
-      className={`relative flex flex-col rounded-2xl border-2 p-5 bg-gradient-to-b transition-all duration-200 ${colors.gradient} ${
-        isCurrent
-          ? `${colors.border} shadow-[0_0_16px_rgba(140,82,255,0.18)]`
-          : `border-slate-100 hover:${colors.border} hover:shadow-md`
+      className={`relative flex flex-col rounded-2xl border backdrop-blur-md transition-all duration-300 overflow-hidden ${style.bg} ${style.border} ${style.glow} ${
+        !isCurrent ? 'hover:border-[#8C52FF]/30 hover:shadow-[0_8px_32px_rgba(140,82,255,0.12)]' : ''
       }`}
     >
-      {isCurrent && (
-        <span className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-xs font-bold whitespace-nowrap shadow-sm ${colors.badge}`}>
-          Текущий план
-        </span>
+      {/* Popular badge */}
+      {isPopular && !isCurrent && (
+        <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[#8C52FF] to-violet-500 text-white text-center text-[11px] font-bold py-1 tracking-wide uppercase">
+          Популярный выбор
+        </div>
       )}
 
-      <div className="mb-4">
-        <p className="text-sm font-semibold text-slate-500 mb-0.5">{plan.name}</p>
-        {plan.price === 0 ? (
-          <p className="text-2xl font-black text-slate-800">Бесплатно</p>
-        ) : (
-          <p className="text-2xl font-black text-slate-800">
-            {plan.price} <span className="text-base font-semibold text-slate-500">₽/мес</span>
-          </p>
-        )}
-      </div>
+      {/* Current badge */}
+      {isCurrent && (
+        <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center text-[11px] font-bold py-1 tracking-wide uppercase">
+          Ваш текущий план
+        </div>
+      )}
 
-      <ul className="flex flex-col gap-1.5 mb-5 flex-1">
-        {highlights.map((item) => (
-          <li key={item} className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#8C52FF]/10 flex items-center justify-center">
-              <CheckIcon className="w-2.5 h-2.5 text-[#8C52FF]" />
-            </span>
-            {item}
-          </li>
-        ))}
-      </ul>
+      <div className={`p-5 flex flex-col flex-1 ${(isPopular && !isCurrent) || isCurrent ? 'pt-9' : ''}`}>
+        {/* Plan name + price */}
+        <div className={`rounded-xl p-3 mb-4 bg-gradient-to-b ${style.priceBg}`}>
+          <div className="flex items-center gap-2 mb-1">
+            {planId === 'expert' && <CrownIcon className="w-4 h-4 text-amber-500" />}
+            <p className="text-sm font-semibold text-slate-500">{plan.name}</p>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-black text-slate-800">{plan.price}</span>
+            <span className="text-base font-semibold text-slate-500">{'\u20BD'}/мес</span>
+          </div>
+        </div>
 
-      {planId !== 'free' && (
+        {/* Features */}
+        <ul className="flex flex-col gap-2 mb-5 flex-1">
+          {features.map((f, i) => (
+            <li key={i} className={`flex items-start gap-2 text-[13px] leading-snug ${
+              f.available ? (f.highlight ? 'text-[#8C52FF] font-medium' : 'text-slate-700') : 'text-slate-400'
+            }`}>
+              <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center mt-0.5 ${
+                f.available ? 'bg-[#8C52FF]/10' : 'bg-slate-100'
+              }`}>
+                {f.available ? (
+                  <CheckIcon className="w-2.5 h-2.5 text-[#8C52FF]" />
+                ) : (
+                  <XMarkIcon className="w-2.5 h-2.5 text-slate-300" />
+                )}
+              </span>
+              {f.text}
+            </li>
+          ))}
+        </ul>
+
+        {/* Action button */}
         <button
           onClick={() => onSelect(planId)}
-          disabled={isCurrent || isLoading}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
+          disabled={isCurrent || isLoading || disabled}
+          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
             isCurrent
-              ? 'bg-slate-100 text-slate-400 cursor-default'
-              : 'bg-gradient-to-r from-[#8C52FF] to-[#A16BFF] text-white hover:opacity-90 hover:shadow-md hover:shadow-purple-300/40 active:scale-[0.98]'
+              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+              : disabled
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                : `bg-gradient-to-r ${style.btnGradient} text-white hover:opacity-90 hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]`
           }`}
         >
           {isLoading ? (
@@ -136,11 +214,13 @@ function PlanCard({ planId, isCurrent, isLoading, onSelect }: PlanCardProps) {
             </span>
           ) : isCurrent ? (
             'Активен'
+          ) : disabled ? (
+            'Примите условия'
           ) : (
             'Оформить'
           )}
         </button>
-      )}
+      </div>
     </div>
   )
 }
@@ -332,6 +412,71 @@ function TopupTabContent() {
   )
 }
 
+// ==================== AGREEMENT CHECKBOXES ====================
+
+interface AgreementCheckboxesProps {
+  agreedTerms: boolean
+  agreedRecurring: boolean
+  onToggleTerms: () => void
+  onToggleRecurring: () => void
+}
+
+function AgreementCheckboxes({ agreedTerms, agreedRecurring, onToggleTerms, onToggleRecurring }: AgreementCheckboxesProps) {
+  return (
+    <div className="flex flex-col gap-3 p-4 rounded-xl bg-slate-50/80 border border-slate-100">
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <div className="relative flex-shrink-0 mt-0.5">
+          <input
+            type="checkbox"
+            checked={agreedTerms}
+            onChange={onToggleTerms}
+            className="sr-only peer"
+          />
+          <div className={`w-5 h-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
+            agreedTerms
+              ? 'bg-[#8C52FF] border-[#8C52FF]'
+              : 'border-slate-300 group-hover:border-[#8C52FF]/50'
+          }`}>
+            {agreedTerms && <CheckIcon className="w-3 h-3 text-white" />}
+          </div>
+        </div>
+        <span className="text-[13px] text-slate-600 leading-snug select-none">
+          Я принимаю{' '}
+          <a href="#" onClick={(e) => e.preventDefault()} className="text-[#8C52FF] hover:underline">
+            пользовательское соглашение
+          </a>
+          , с{' '}
+          <a href="#" onClick={(e) => e.preventDefault()} className="text-[#8C52FF] hover:underline">
+            политикой персональных данных
+          </a>
+          {' '}ознакомлен.
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 cursor-pointer group">
+        <div className="relative flex-shrink-0 mt-0.5">
+          <input
+            type="checkbox"
+            checked={agreedRecurring}
+            onChange={onToggleRecurring}
+            className="sr-only peer"
+          />
+          <div className={`w-5 h-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
+            agreedRecurring
+              ? 'bg-[#8C52FF] border-[#8C52FF]'
+              : 'border-slate-300 group-hover:border-[#8C52FF]/50'
+          }`}>
+            {agreedRecurring && <CheckIcon className="w-3 h-3 text-white" />}
+          </div>
+        </div>
+        <span className="text-[13px] text-slate-600 leading-snug select-none">
+          Даю согласие на автоматическое списание денежных средств для оплаты подписки (каждого последующего Расчетного периода).
+        </span>
+      </label>
+    </div>
+  )
+}
+
 // ==================== MAIN MODAL ====================
 
 export interface SubscriptionPlansModalProps {
@@ -349,6 +494,8 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [cancelSuccess, setCancelSuccess] = useState<string | null>(null)
+  const [agreedTerms, setAgreedTerms] = useState(false)
+  const [agreedRecurring, setAgreedRecurring] = useState(false)
 
   const subscription = user?.subscription
   const currentPlan = subscription?.plan ?? 'free'
@@ -357,6 +504,8 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
 
   // Show topup tab only if user has active paid subscription and ran out of generations
   const showTopupTab = isPaid && subStatus === 'active' && (user?.generationsLeft ?? 0) <= 0
+
+  const bothAgreed = agreedTerms && agreedRecurring
 
   // Sync tab when initialTab changes (e.g. opened from different triggers)
   useEffect(() => {
@@ -368,6 +517,8 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
       setCancelConfirm(false)
       setCancelError(null)
       setCancelSuccess(null)
+      setAgreedTerms(false)
+      setAgreedRecurring(false)
     }
   }, [isOpen, initialTab, showTopupTab])
 
@@ -387,7 +538,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   }, [isOpen, onClose])
 
   async function handleSelectPlan(planId: SubscriptionPlanId) {
-    if (planId === 'free') return
+    if (planId === 'free' || !bothAgreed) return
     try {
       setLoadingPlan(planId)
       setSubscribeError(null)
@@ -454,19 +605,22 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-gradient-to-b from-white to-slate-50 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto border border-white/60">
+        {/* Decorative gradient blob */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] bg-gradient-to-b from-[#8C52FF]/8 to-transparent rounded-full blur-3xl pointer-events-none" />
+
         {/* Header */}
-        <div className="sticky top-0 bg-white z-10 px-6 pt-6 pb-0 rounded-t-2xl">
+        <div className="sticky top-0 bg-white/80 backdrop-blur-xl z-10 px-6 pt-6 pb-0 rounded-t-3xl border-b border-slate-100/50">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="absolute top-4 right-4 p-2 hover:bg-slate-100/80 rounded-xl transition-colors"
             aria-label="Закрыть"
           >
             <CloseIcon className="w-5 h-5 text-slate-400" />
           </button>
 
           <h2 className="text-2xl font-bold text-center mb-1">
-            Управление <span className="text-[#8C52FF]">подпиской</span>
+            Управление <span className="bg-gradient-to-r from-[#8C52FF] to-violet-500 bg-clip-text text-transparent">подпиской</span>
           </h2>
           <p className="text-center text-slate-500 text-sm mb-4">
             {showTopupTab ? 'Выберите тариф или пополните генерации' : 'Выберите подходящий тариф'}
@@ -474,7 +628,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
 
           {/* Tabs - only show when topup is available */}
           {showTopupTab && (
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-5">
+            <div className="flex gap-1 p-1 bg-slate-100/80 rounded-xl mb-5">
               <button
                 onClick={() => setActiveTab('subscription')}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
@@ -501,25 +655,25 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
         </div>
 
         {/* Content */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 pt-2">
           {activeTab === 'subscription' ? (
             <>
               {/* Status banners */}
               {subStatus === 'past_due' && (
-                <div className="flex items-center gap-3 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+                <div className="flex items-center gap-3 p-3 mb-4 bg-amber-50/80 border border-amber-200 rounded-xl text-amber-800 text-sm backdrop-blur-sm">
                   <WarningIcon className="w-5 h-5 flex-shrink-0 text-amber-500" />
                   <span className="font-medium">Проблема с оплатой. Обновите платёжные данные, чтобы продолжить пользоваться сервисом.</span>
                 </div>
               )}
 
               {subStatus === 'cancelled' && subscription?.currentPeriodEnd && (
-                <div className="flex items-center gap-3 p-3 mb-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm">
+                <div className="flex items-center gap-3 p-3 mb-4 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-700 text-sm backdrop-blur-sm">
                   <span className="font-medium">Подписка отменена. Активна до {formatDate(subscription.currentPeriodEnd)}.</span>
                 </div>
               )}
 
               {cancelSuccess && (
-                <div className="flex items-center gap-3 p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
+                <div className="flex items-center gap-3 p-3 mb-4 bg-green-50/80 border border-green-200 rounded-xl text-green-800 text-sm backdrop-blur-sm">
                   <CheckIcon className="w-5 h-5 flex-shrink-0 text-green-500" />
                   <span className="font-medium">{cancelSuccess}</span>
                 </div>
@@ -527,7 +681,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
 
               {/* Current plan info for paid users */}
               {isPaid && subscription && subStatus !== 'cancelled' && (
-                <div className="mb-4 p-3 bg-purple-50 border border-purple-100 rounded-xl text-sm text-slate-700">
+                <div className="mb-4 p-3 bg-[#8C52FF]/5 border border-[#8C52FF]/10 rounded-xl text-sm text-slate-700 backdrop-blur-sm">
                   <span className="font-semibold text-[#8C52FF]">Ваш план: {SUBSCRIPTION_PLANS[currentPlan].name}</span>
                   {subscription.currentPeriodEnd && subStatus === 'active' && (
                     <span className="text-slate-500 ml-2">
@@ -540,12 +694,13 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
               {/* Plan cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
                 {PAID_PLANS.map((planId) => (
-                  // eslint-disable-next-line react/jsx-key
                   <div key={planId}>
                     <PlanCard
                       planId={planId}
                       isCurrent={currentPlan === planId}
                       isLoading={loadingPlan === planId}
+                      isPopular={planId === 'teacher'}
+                      disabled={!bothAgreed && currentPlan !== planId}
                       onSelect={handleSelectPlan}
                     />
                   </div>
@@ -553,14 +708,22 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
               </div>
 
               {subscribeError && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
+                <div className="mb-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-red-600 text-sm text-center backdrop-blur-sm">
                   {subscribeError}
                 </div>
               )}
 
+              {/* Agreement checkboxes */}
+              <AgreementCheckboxes
+                agreedTerms={agreedTerms}
+                agreedRecurring={agreedRecurring}
+                onToggleTerms={() => setAgreedTerms((v) => !v)}
+                onToggleRecurring={() => setAgreedRecurring((v) => !v)}
+              />
+
               {/* Cancel subscription */}
               {isPaid && subStatus !== 'cancelled' && (
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 pt-4 mt-5">
                   {cancelError && (
                     <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
                       {cancelError}
