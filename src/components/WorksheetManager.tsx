@@ -230,7 +230,13 @@ export default function WorksheetManager() {
   // Mutations
   const deleteMutation = useMutation({
     mutationFn: deleteWorksheet,
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['worksheets'] })
+      queryClient.setQueriesData<WorksheetListItem[]>({ queryKey: ['worksheets'] }, (old) =>
+        old?.filter((ws) => ws.id !== id)
+      )
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['worksheets'] })
       queryClient.invalidateQueries({ queryKey: ['folders'] })
     },

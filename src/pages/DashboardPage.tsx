@@ -92,9 +92,15 @@ export default function DashboardPage() {
 
   const deletePresentationMutation = useMutation({
     mutationFn: deletePresentation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['presentations'] })
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['presentations'] })
+      queryClient.setQueriesData<PresentationListItem[]>({ queryKey: ['presentations'] }, (old) =>
+        old?.filter((p) => p.id !== id)
+      )
       setDeletingPresentationId(null)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['presentations'] })
     },
   })
 

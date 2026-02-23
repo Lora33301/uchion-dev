@@ -427,7 +427,13 @@ export default function PresentationsListPage() {
   // Mutations
   const deleteMutation = useMutation({
     mutationFn: deletePresentation,
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['presentations'] })
+      queryClient.setQueriesData<PresentationListItem[]>({ queryKey: ['presentations'] }, (old) =>
+        old?.filter((p) => p.id !== id)
+      )
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['presentations'] })
       queryClient.invalidateQueries({ queryKey: ['folders'] })
     },
