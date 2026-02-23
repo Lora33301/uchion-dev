@@ -36,6 +36,7 @@ export function withAuth(
         email: users.email,
         name: users.name,
         role: users.role,
+        hasPaidAccess: users.hasPaidAccess,
       })
       .from(users)
       .where(and(
@@ -75,6 +76,7 @@ export function optionalAuth(
             email: users.email,
             name: users.name,
             role: users.role,
+            hasPaidAccess: users.hasPaidAccess,
           })
           .from(users)
           .where(and(

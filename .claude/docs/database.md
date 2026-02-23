@@ -5,7 +5,7 @@ PostgreSQL + Drizzle ORM. 12 tables.
 ## Tables
 
 ### users
-Core user table. Fields: id, role ('user'|'admin'), provider ('yandex'|'email'), providerId, email, name, avatarUrl, generationsLeft, subscriptionPlan ('free'|'starter'|'teacher'|'expert'), telegramChatId, wantsAlerts, createdAt, updatedAt, deletedAt.
+Core user table. Fields: id, role ('user'|'admin'), provider ('yandex'|'email'), providerId, email, name, avatarUrl, generationsLeft, subscriptionPlan ('free'|'starter'|'teacher'|'expert'), hasPaidAccess (bool, true if user bought a generation pack), telegramChatId, wantsAlerts, createdAt, updatedAt, deletedAt.
 
 ### folders
 Hierarchical folders for worksheets and presentations. Fields: id, userId, name, parentId (self-ref), color, sortOrder, createdAt, updatedAt, deletedAt.

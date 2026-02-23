@@ -171,6 +171,7 @@ Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
 6. **Drizzle ORM** -- use `error.cause.code` for PG error codes (wrapped errors), not `error.code`
 7. **Token limit** -- `max_tokens: 16000` for generation, NOT 8000
 8. **Grade-tiered models** -- grades 1-6 use cheap gpt-4.1-mini; grades 7-11 use Gemini with reasoning
+9. **Paid model logic** -- `isPaid = planConfig.paidModel || user.hasPaidAccess || admin`. Subscriptions use `planConfig.paidModel` (resets on expiry). Generation pack purchases set `users.hasPaidAccess` (sticky). Do NOT set `hasPaidAccess` for subscriptions.
 
 ## See Also
 

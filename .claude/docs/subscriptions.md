@@ -58,11 +58,21 @@ Both point to the same handler:
 - Event key for subscriptions: `sub:<subscriptionId>:<paymentNum>:<status>`
 - Duplicate handling via `INSERT ... ON CONFLICT` (PostgreSQL error 23505)
 
+## Model Selection (paid vs free)
+
+`isPaid` check in generate/presentations routes:
+1. `planConfig.paidModel` -- active subscription (starter/teacher/expert) → gpt-4.1
+2. `req.user.hasPaidAccess` -- bought a generation pack → gpt-4.1
+3. `req.user.role === 'admin'` → gpt-4.1
+4. Otherwise → deepseek (free model)
+
+**Important**: `hasPaidAccess` flag is set ONLY when buying generation packs (in `billing-effects.ts`), NOT when activating a subscription. Subscriptions use their own check via `planConfig.paidModel`. When subscription expires, user returns to deepseek.
+
 ## Key Files
 
 - `shared/plans.ts` -- plan config (single source of truth)
 - `server/routes/billing.ts` -- subscription endpoints + webhook handler
 - `server/lib/prodamus.ts` -- link generation + HMAC signature verification
-- `server/lib/billing-effects.ts` -- product effects (generations, subscriptions)
-- `db/schema.ts` -- subscriptions table
+- `server/lib/billing-effects.ts` -- product effects (generations, subscriptions), sets `hasPaidAccess`
+- `db/schema.ts` -- subscriptions table, users.hasPaidAccess
 - `src/components/BuyGenerationsModal.tsx` -- plan selection UI

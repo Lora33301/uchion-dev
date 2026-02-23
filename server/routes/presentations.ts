@@ -145,7 +145,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     const fallbackProvider = getAIProvider()
 
     // Determine if user has paid subscription (use better model)
-    const isPaid = planConfig.paidModel || req.user.role === 'admin'
+    const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
 
     // 6. Call generatePresentation - prefer Claude for presentations
     const provider = claudeProvider || fallbackProvider

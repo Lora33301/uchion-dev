@@ -48,6 +48,14 @@ Each format has 3 variants (basic / pro / pro+), costing 1/2/3 generations.
 |---------|-------|---------|
 | Generation (paid) | `openai/gpt-4.1` (~0.7 rub/sheet) | `AI_MODEL_PAID` |
 | Generation (free) | `deepseek/deepseek-v3.2` | `AI_MODEL_FREE` |
+
+**Paid model selection logic** (`isPaid` in generate/presentations routes):
+- Active subscription with `paidModel: true` (starter/teacher/expert) → gpt-4.1
+- User bought a generation pack (`users.hasPaidAccess = true`) → gpt-4.1
+- Admin role → gpt-4.1
+- Otherwise → deepseek (free model)
+
+When subscription expires, user goes back to deepseek. `hasPaidAccess` is set only for one-time generation pack purchases (NOT subscriptions), so it persists independently.
 | Validation agents | `openai/gpt-4.1-mini` | `AI_MODEL_AGENTS` |
 | Verifier (STEM 7-11) | `google/gemini-3-flash-preview` (reasoning: low) | `AI_MODEL_VERIFIER_STEM` |
 | Verifier (humanities 7-11) | `google/gemini-2.5-flash-lite` (reasoning: off) | `AI_MODEL_VERIFIER_HUMANITIES` |

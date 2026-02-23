@@ -11,6 +11,7 @@ export interface AuthUser {
   email: string
   name: string | null
   role: 'user' | 'admin'
+  hasPaidAccess: boolean
 }
 
 // Request with authenticated user

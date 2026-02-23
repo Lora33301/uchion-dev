@@ -147,8 +147,8 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   try {
     const ai = getAIProvider()
 
-    // Determine if user has paid subscription (use better model)
-    const isPaid = isPaidUser || req.user.role === 'admin'
+    // Determine if user has paid access (subscription, generation pack, or admin)
+    const isPaid = isPaidUser || req.user.hasPaidAccess || req.user.role === 'admin'
 
     // Pass progress callback with extended params
     const generateParams = {
@@ -435,7 +435,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
   }
 
   try {
-    const isPaid = planConfig.paidModel || req.user.role === 'admin'
+    const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
 
     const ai = getAIProvider()
     const aiSessionId = crypto.randomUUID()

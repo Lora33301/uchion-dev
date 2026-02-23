@@ -25,6 +25,7 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').notNull().default('user'),
   generationsLeft: integer('generations_left').notNull().default(5),
   subscriptionPlan: varchar('subscription_plan', { length: 20 }).notNull().default('free'), // 'free' | 'starter' | 'teacher' | 'expert'
+  hasPaidAccess: boolean('has_paid_access').notNull().default(false), // Once paid (any subscription or generation pack) = always gpt-4.1
   // OAuth provider info
   provider: varchar('provider', { length: 50 }),  // 'yandex' | 'email'
   providerId: varchar('provider_id', { length: 255 }),

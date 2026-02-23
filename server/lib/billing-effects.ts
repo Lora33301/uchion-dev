@@ -77,6 +77,7 @@ export async function applyProductEffect(
         .update(users)
         .set({
           generationsLeft: sql`${users.generationsLeft} + ${generationsCount}`,
+          hasPaidAccess: true,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId))
@@ -100,6 +101,7 @@ export async function applyProductEffect(
       .update(users)
       .set({
         generationsLeft: sql`${users.generationsLeft} + ${product.value}`,
+        hasPaidAccess: true,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
