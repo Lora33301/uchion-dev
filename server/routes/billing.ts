@@ -839,6 +839,10 @@ async function handleSubscriptionWebhook(
       plan = existingSub.plan
     } else {
       plan = 'starter' // last resort default
+      sendAdminAlert({
+        message: `Plan resolution failed, defaulting to starter!\nUser: ${user?.email || userId}\nprodamusSubId: ${prodamusSubId}\nplanFromParam: ${planFromParam || 'none'}`,
+        level: 'warning',
+      }).catch(() => {})
     }
     console.log(`[Subscription Webhook] Plan fallback from DB/default: ${plan}`)
   }
@@ -928,9 +932,12 @@ async function handleSubscriptionWebhook(
       await tx
         .update(subscriptions)
         .set({
+          plan: plan,
           status: 'active',
+          generationsPerPeriod: planConfig.generationsPerPeriod,
           currentPeriodStart: now,
           currentPeriodEnd: periodEnd,
+          cancelledAt: null,
           updatedAt: now,
         })
         .where(eq(subscriptions.userId, userId))
@@ -939,6 +946,7 @@ async function handleSubscriptionWebhook(
       await tx
         .update(users)
         .set({
+          subscriptionPlan: plan,
           generationsLeft: planConfig.generationsPerPeriod,
           updatedAt: now,
         })
