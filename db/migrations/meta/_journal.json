@@ -92,6 +92,13 @@
       "when": 1771400000000,
       "tag": "0012_add_has_paid_access",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1771500000000,
+      "tag": "0013_fix_starter_subscription",
+      "breakpoints": true
     }
   ]
 }
