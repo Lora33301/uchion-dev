@@ -112,12 +112,14 @@ throw ApiError.internal('Server error')
 
 ## Subscription Plans (`shared/plans.ts`)
 
-| Plan | Display Name | Price | Gens/mo | Folders | Model |
-|------|-------------|-------|---------|---------|-------|
-| free | Бесплатный | 0 | 5 (one-time) | 2 | deepseek-v3.2 |
-| starter | Начинающий | 390/mo | 25 | 10 | gpt-4.1 |
-| teacher | Методист | 890/mo | 60 | 10 | gpt-4.1 |
-| expert | Эксперт | 1690/mo | 120 | 10 | gpt-4.1 |
+| Plan | Display Name | Price | Gens/mo | Folders | Regen/day | PDF Styles | Model |
+|------|-------------|-------|---------|---------|-----------|------------|-------|
+| free | Бесплатный | 0 | 5 (one-time) | 2 | 0 | standard only | deepseek-v3.2 |
+| starter | Начинающий | 390/mo | 25 | 5 | 3 | all | gpt-4.1 |
+| teacher | Методист | 890/mo | 60 | 10 | 6 | all | gpt-4.1 |
+| expert | Эксперт | 1690/mo | 120 | 10 | 10 | all | gpt-4.1 |
+
+Regeneration is **free** (does not deduct from `generationsLeft`), controlled only by daily regen limit.
 
 Recurring via Prodamus club subscriptions. See `.claude/docs/subscriptions.md`.
 
@@ -160,6 +162,7 @@ Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
 - **GeneratePage tab switching**: Supports `/?tab=presentation` URL param to open in presentation mode. Dashboard "Создать первую" link uses this.
 - **Plan display names**: free=Бесплатный, starter=Начинающий, teacher=Методист, expert=Эксперт. Use names from `shared/plans.ts`, NOT hardcoded.
 - **Subscription modal**: Glass morphism design with backdrop-blur cards. Detailed feature lists per plan from PLAN_LIMIT.md. Teacher plan has "Популярный выбор" badge. Two mandatory checkboxes (user agreement + recurring payment consent) must be checked before payment buttons become active. Links in checkboxes are placeholders (`href="#"`).
+- **PDF template styles**: 3 styles (standard, rainbow, academic). Free plan can only use standard; non-standard styles show lock icon and "Доступно по подписке" button opening SubscriptionPlansModal. Paid plans have all styles. Controlled by `pdfTemplateStyles` in PlanConfig.
 
 ## Critical Rules
 

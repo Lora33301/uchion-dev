@@ -21,6 +21,12 @@ Server-side generation via **Puppeteer** + `@sparticuz/chromium`.
 ### Client-side fallback
 `src/lib/pdf-client.ts` -- uses `pdf-lib` if server PDF is empty.
 
+### PDF Template Styles
+3 styles available via `PdfTemplateModal`: `standard`, `rainbow`, `academic`.
+- Free plan: only `standard` (others show lock icon + upgrade prompt)
+- Paid plans (starter/teacher/expert): all styles available
+- Controlled by `pdfTemplateStyles` field in `PlanConfig` (`shared/plans.ts`)
+
 ### Download flow
 `handleDownloadPdf` checks `pdfBase64` first; falls back to client-side `pdf-lib` if empty.
 
