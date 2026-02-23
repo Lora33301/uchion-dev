@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ai_usage_session_id_idx ON ai_usage(session_id);
-CREATE INDEX ai_usage_user_id_idx ON ai_usage(user_id);
-CREATE INDEX ai_usage_created_at_idx ON ai_usage(created_at);
-CREATE INDEX ai_usage_model_idx ON ai_usage(model);
+CREATE INDEX IF NOT EXISTS ai_usage_session_id_idx ON ai_usage(session_id);
+CREATE INDEX IF NOT EXISTS ai_usage_user_id_idx ON ai_usage(user_id);
+CREATE INDEX IF NOT EXISTS ai_usage_created_at_idx ON ai_usage(created_at);
+CREATE INDEX IF NOT EXISTS ai_usage_model_idx ON ai_usage(model);
