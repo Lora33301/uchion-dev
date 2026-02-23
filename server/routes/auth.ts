@@ -103,7 +103,7 @@ router.get('/me', async (req: Request, res: Response) => {
     .limit(1)
 
   // Get plan config
-  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status, subscription?.currentPeriodEnd)
 
   // Get usage counts in parallel
   const [

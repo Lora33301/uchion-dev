@@ -69,12 +69,12 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
   // Load subscription + plan config
   const [subscription] = await db
-    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .limit(1)
 
-  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status, subscription?.currentPeriodEnd)
   const isPaidUser = planConfig.paidModel
 
   if (isPaidUser) {
@@ -368,12 +368,12 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
 
   // Load subscription + plan config BEFORE checking limits
   const [sub] = await db
-    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .limit(1)
 
-  const planConfig = getUserPlanConfig(sub?.plan, sub?.status)
+  const planConfig = getUserPlanConfig(sub?.plan, sub?.status, sub?.currentPeriodEnd)
 
   // Check plan allows regen at all
   if (planConfig.dailyRegenLimit === 0 && req.user.role !== 'admin') {
@@ -501,12 +501,12 @@ router.post('/rebuild-pdf', optionalAuth(async (req: Request, res: Response) => 
     const authReq = req as AuthenticatedRequest
     if (authReq.user) {
       const [sub] = await db
-        .select({ plan: subscriptions.plan, status: subscriptions.status })
+        .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
         .from(subscriptions)
         .where(eq(subscriptions.userId, authReq.user.id))
         .limit(1)
 
-      const planConfig = getUserPlanConfig(sub?.plan, sub?.status)
+      const planConfig = getUserPlanConfig(sub?.plan, sub?.status, sub?.currentPeriodEnd)
       addWatermark = planConfig.pdfWatermark && authReq.user.role !== 'admin'
     }
 

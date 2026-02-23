@@ -58,12 +58,12 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
 
   // 3. Load subscription + check plan allows presentations
   const [subscription] = await db
-    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .limit(1)
 
-  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status, subscription?.currentPeriodEnd)
 
   if (!planConfig.canGeneratePresentation && req.user.role !== 'admin') {
     return res.status(403).json({

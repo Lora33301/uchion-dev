@@ -117,13 +117,29 @@ export function isActiveSubscription(status: string | null | undefined): boolean
   return status === 'active' || status === 'past_due'
 }
 
-/** Get effective plan config for a user based on their subscription status */
+/** Get effective plan config for a user based on their subscription status.
+ *  Cancelled subscriptions remain active until currentPeriodEnd. */
 export function getUserPlanConfig(
   plan: string | null | undefined,
-  subscriptionStatus: string | null | undefined
+  subscriptionStatus: string | null | undefined,
+  currentPeriodEnd?: Date | string | null
 ): PlanConfig {
-  if (!plan || plan === 'free' || !isActiveSubscription(subscriptionStatus)) {
+  if (!plan || plan === 'free') {
     return SUBSCRIPTION_PLANS.free
   }
-  return getPlanConfig(plan)
+
+  // Active or past_due — always grant paid plan
+  if (isActiveSubscription(subscriptionStatus)) {
+    return getPlanConfig(plan)
+  }
+
+  // Cancelled but period not yet expired — still grant paid plan
+  if (subscriptionStatus === 'cancelled' && currentPeriodEnd) {
+    const endDate = typeof currentPeriodEnd === 'string' ? new Date(currentPeriodEnd) : currentPeriodEnd
+    if (endDate > new Date()) {
+      return getPlanConfig(plan)
+    }
+  }
+
+  return SUBSCRIPTION_PLANS.free
 }

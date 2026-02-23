@@ -113,12 +113,12 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   const { name, color, parentId } = parse.data
 
   const [subscription] = await db
-    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)
     .where(eq(subscriptions.userId, user.id))
     .limit(1)
 
-  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status, subscription?.currentPeriodEnd)
   const folderLimit = planConfig.folders
 
   const [{ value: folderCount }] = await db
