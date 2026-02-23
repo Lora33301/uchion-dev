@@ -228,6 +228,7 @@ function CreateFolderModal({
   isLoading,
   currentCount,
   plan,
+  folderLimit,
 }: {
   isOpen: boolean
   onClose: () => void
