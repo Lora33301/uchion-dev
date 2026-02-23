@@ -159,6 +159,7 @@ Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
 - **Plan badge**: NOT shown in Header "Личный кабинет" button. Plan info only displayed inside DashboardPage.
 - **GeneratePage tab switching**: Supports `/?tab=presentation` URL param to open in presentation mode. Dashboard "Создать первую" link uses this.
 - **Plan display names**: free=Бесплатный, starter=Начинающий, teacher=Методист, expert=Эксперт. Use names from `shared/plans.ts`, NOT hardcoded.
+- **Subscription modal**: Glass morphism design with backdrop-blur cards. Detailed feature lists per plan from PLAN_LIMIT.md. Teacher plan has "Популярный выбор" badge. Two mandatory checkboxes (user agreement + recurring payment consent) must be checked before payment buttons become active. Links in checkboxes are placeholders (`href="#"`).
 
 ## Critical Rules
 
