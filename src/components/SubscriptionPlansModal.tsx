@@ -66,7 +66,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   starter: [
     { text: '25 генераций в месяц', available: true, highlight: true },
     { text: 'PDF без водяного знака', available: true },
-    { text: 'До 5 перегенераций/день', available: true },
+    { text: 'До 3 перегенераций/день', available: true },
     { text: 'Редактирование листов', available: true },
     { text: '5 папок, до 20 листов', available: true },
     { text: 'Презентации', available: false },
@@ -74,7 +74,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   teacher: [
     { text: '60 генераций в месяц', available: true, highlight: true },
     { text: 'PDF без водяного знака', available: true },
-    { text: 'До 10 перегенераций/день', available: true },
+    { text: 'До 6 перегенераций/день', available: true },
     { text: 'Редактирование листов', available: true },
     { text: '10 папок, до 50 листов', available: true },
     { text: 'Презентации (12 слайдов)', available: true },
@@ -83,7 +83,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   expert: [
     { text: '120 генераций в месяц', available: true, highlight: true },
     { text: 'PDF без водяного знака', available: true },
-    { text: 'Безлимит перегенераций', available: true },
+    { text: 'До 10 перегенераций/день', available: true },
     { text: 'Редактирование листов', available: true },
     { text: '10 папок, до 100 листов', available: true },
     { text: 'Презентации (12/18/24 сл.)', available: true },
