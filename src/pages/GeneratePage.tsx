@@ -461,7 +461,7 @@ export default function GeneratePage() {
 
         {/* Mode switcher + Generations counter */}
         <div className="w-full mb-6 flex items-center justify-between">
-          <div className="inline-flex bg-white rounded-xl p-1 shadow-sm border border-purple-100">
+          <div className="inline-flex bg-purple-50/80 backdrop-blur-sm rounded-xl p-1 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
             <button
               type="button"
               onClick={() => { setMode('worksheet'); setGeneratedPresentation(null); setErrorText(null); }}
@@ -489,7 +489,7 @@ export default function GeneratePage() {
           {/* Generations counter with plus button */}
           {user && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1.5 bg-white rounded-full px-4 py-2 shadow-sm border border-purple-100">
+              <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-4 py-2 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
                 <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                 </svg>
@@ -500,7 +500,7 @@ export default function GeneratePage() {
               <button
                 type="button"
                 onClick={() => setShowBuyModal(true)}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-[#8C52FF] text-white hover:bg-[#7B3FEE] transition-colors shadow-sm"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-50/80 backdrop-blur-sm text-[#8C52FF] hover:bg-purple-100 transition-all hover:scale-105 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]"
                 title="Пополнить генерации"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
