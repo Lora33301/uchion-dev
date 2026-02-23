@@ -77,8 +77,6 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status, subscription?.currentPeriodEnd)
   const isPaidUser = planConfig.paidModel
 
-  console.log(`[Generate] User ${userId}: subscription=${JSON.stringify(subscription || null)}, isPaidUser=${isPaidUser}, hasPaidAccess=${req.user.hasPaidAccess}, role=${req.user.role}`)
-
   if (isPaidUser) {
     const dailyCheck = await checkDailyGenerationLimit(userId, 20)
     if (!dailyCheck.allowed) {
@@ -151,7 +149,6 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
     // Determine if user has paid access (subscription, generation pack, or admin)
     const isPaid = isPaidUser || req.user.hasPaidAccess || req.user.role === 'admin'
-    console.log(`[Generate] User ${userId}: FINAL isPaid=${isPaid} (isPaidUser=${isPaidUser}, hasPaidAccess=${req.user.hasPaidAccess}, role=${req.user.role})`)
 
     // Pass progress callback with extended params
     const generateParams = {
