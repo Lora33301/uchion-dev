@@ -11,7 +11,7 @@ import CustomSelect from '../components/ui/CustomSelect'
 import { useAuth } from '../lib/auth'
 import { getGenerationsLeft, canGenerate } from '../lib/limits'
 import Header from '../components/Header'
-import BuyGenerationsModal from '../components/BuyGenerationsModal'
+import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import { fetchFolders } from '../lib/dashboard-api'
 import type { PresentationStructure } from '../../shared/types'
 import SlidePreview from '../components/presentations/SlidePreview'
@@ -459,31 +459,8 @@ export default function GeneratePage() {
           <p className="text-lg text-slate-500">Какой материал хотите сгенерировать?</p>
         </div>
 
-        {/* Generations counter -- only for authenticated users */}
-        {user && (
-          <div className="w-full flex justify-end mb-4">
-            <div className="flex items-center gap-2 bg-white rounded-full px-5 py-2.5 shadow-sm border border-purple-100">
-              <svg className="w-5 h-5 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
-              </svg>
-              <span className="font-semibold text-slate-700">
-                {generationsLeft}
-              </span>
-              {generationsLeft === 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowBuyModal(true)}
-                  className="ml-1 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
-                >
-                  Пополнить
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Mode switcher: Worksheet | Presentation */}
-        <div className="w-full mb-6">
+        {/* Mode switcher + Generations counter */}
+        <div className="w-full mb-6 flex items-center justify-between">
           <div className="inline-flex bg-white rounded-xl p-1 shadow-sm border border-purple-100">
             <button
               type="button"
@@ -508,6 +485,30 @@ export default function GeneratePage() {
               Презентация
             </button>
           </div>
+
+          {/* Generations counter with plus button */}
+          {user && (
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-white rounded-full px-4 py-2 shadow-sm border border-purple-100">
+                <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                </svg>
+                <span className="text-sm font-semibold text-slate-700">
+                  Генераций: {generationsLeft}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-[#8C52FF] text-white hover:bg-[#7B3FEE] transition-colors shadow-sm"
+                title="Пополнить генерации"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Worksheet Form */}
@@ -780,10 +781,10 @@ export default function GeneratePage() {
                   {errorCode === 'LIMIT_EXCEEDED' && (
                     <button
                       type="button"
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() => setShowBuyModal(true)}
                       className="mt-1 px-5 py-2 rounded-lg bg-[#8C52FF] text-white text-sm font-medium hover:bg-[#7B3FEE] transition-colors"
                     >
-                      Купить генерации
+                      Оформить подписку
                     </button>
                   )}
                 </div>
@@ -1005,7 +1006,7 @@ export default function GeneratePage() {
                             onClick={() => setShowBuyModal(true)}
                             className="mt-1 px-5 py-2 rounded-lg bg-[#8C52FF] text-white text-sm font-medium hover:bg-[#7B3FEE] transition-colors"
                           >
-                            Купить генерации
+                            Оформить подписку
                           </button>
                         )}
                       </div>
@@ -1049,8 +1050,8 @@ export default function GeneratePage() {
         </div>
       )}
 
-      {/* Buy Generations Modal */}
-      <BuyGenerationsModal
+      {/* Subscription Plans Modal */}
+      <SubscriptionPlansModal
         isOpen={showBuyModal}
         onClose={() => setShowBuyModal(false)}
       />

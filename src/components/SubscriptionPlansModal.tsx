@@ -355,16 +355,21 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   const subStatus = subscription?.status ?? 'active'
   const isPaid = currentPlan !== 'free'
 
+  // Show topup tab only if user has active paid subscription and ran out of generations
+  const showTopupTab = isPaid && subStatus === 'active' && (user?.generationsLeft ?? 0) <= 0
+
   // Sync tab when initialTab changes (e.g. opened from different triggers)
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(initialTab)
+      // If topup tab requested but not allowed, fall back to subscription
+      const tab = initialTab === 'topup' && !showTopupTab ? 'subscription' : initialTab
+      setActiveTab(tab)
       setSubscribeError(null)
       setCancelConfirm(false)
       setCancelError(null)
       setCancelSuccess(null)
     }
-  }, [isOpen, initialTab])
+  }, [isOpen, initialTab, showTopupTab])
 
   // Escape key + body scroll lock
   useEffect(() => {
@@ -464,32 +469,35 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
             Управление <span className="text-[#8C52FF]">подпиской</span>
           </h2>
           <p className="text-center text-slate-500 text-sm mb-4">
-            Выберите тариф или пополните генерации
+            {showTopupTab ? 'Выберите тариф или пополните генерации' : 'Выберите подходящий тариф'}
           </p>
 
-          {/* Tabs */}
-          <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-5">
-            <button
-              onClick={() => setActiveTab('subscription')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === 'subscription'
-                  ? 'bg-white text-[#8C52FF] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Подписка
-            </button>
-            <button
-              onClick={() => setActiveTab('topup')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === 'topup'
-                  ? 'bg-white text-[#8C52FF] shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Пополнить генерации
-            </button>
-          </div>
+          {/* Tabs - only show when topup is available */}
+          {showTopupTab && (
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-5">
+              <button
+                onClick={() => setActiveTab('subscription')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'subscription'
+                    ? 'bg-white text-[#8C52FF] shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Подписка
+              </button>
+              <button
+                onClick={() => setActiveTab('topup')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'topup'
+                    ? 'bg-white text-[#8C52FF] shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Пополнить генерации
+              </button>
+            </div>
+          )}
+          {!showTopupTab && <div className="mb-5" />}
         </div>
 
         {/* Content */}
