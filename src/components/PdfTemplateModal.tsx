@@ -7,6 +7,8 @@ interface PdfTemplateModalProps {
   onClose: () => void
   onSelect: (templateId: PdfTemplateId) => void
   loading: boolean
+  canUseStyles?: boolean // false = only standard available (free plan)
+  onUpgrade?: () => void
 }
 
 const templates: { id: PdfTemplateId; name: string; description: string }[] = [
@@ -27,7 +29,7 @@ const templates: { id: PdfTemplateId; name: string; description: string }[] = [
   },
 ]
 
-export default function PdfTemplateModal({ isOpen, onClose, onSelect, loading }: PdfTemplateModalProps) {
+export default function PdfTemplateModal({ isOpen, onClose, onSelect, loading, canUseStyles = true, onUpgrade }: PdfTemplateModalProps) {
   const [selected, setSelected] = useState<PdfTemplateId>('standard')
 
   useEffect(() => {
@@ -44,7 +46,16 @@ export default function PdfTemplateModal({ isOpen, onClose, onSelect, loading }:
     }
   }, [isOpen, onClose, loading])
 
+  // Reset to standard when opening if styles not available
+  useEffect(() => {
+    if (isOpen && !canUseStyles) {
+      setSelected('standard')
+    }
+  }, [isOpen, canUseStyles])
+
   if (!isOpen) return null
+
+  const isLockedStyle = !canUseStyles && selected !== 'standard'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -69,62 +80,95 @@ export default function PdfTemplateModal({ isOpen, onClose, onSelect, loading }:
           <p className="text-sm text-gray-500 text-center mb-5">Выберите стиль оформления рабочего листа</p>
 
           <div className="grid grid-cols-3 gap-3">
-            {templates.map((tpl) => (
-              <button
-                key={tpl.id}
-                onClick={() => setSelected(tpl.id)}
-                disabled={loading}
-                className={`relative rounded-xl border-2 p-3 text-left transition-all ${
-                  selected === tpl.id
-                    ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
-                } disabled:opacity-60`}
-              >
-                {/* Preview thumbnail */}
-                <div className={`rounded-lg mb-3 h-28 flex items-center justify-center overflow-hidden ${
-                  tpl.id === 'standard' ? 'bg-gray-50' : tpl.id === 'rainbow' ? 'bg-pink-50' : 'bg-amber-50/60'
-                }`}>
-                  {tpl.id === 'standard' ? <StandardPreview /> : tpl.id === 'rainbow' ? <RainbowPreview /> : <AcademicPreview />}
-                </div>
-
-                <div className="font-semibold text-sm text-gray-900">{tpl.name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{tpl.description}</div>
-
-                {selected === tpl.id && (
-                  <div className="absolute top-2 right-2 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+            {templates.map((tpl) => {
+              const isLocked = !canUseStyles && tpl.id !== 'standard'
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => setSelected(tpl.id)}
+                  disabled={loading}
+                  className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                    selected === tpl.id
+                      ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  } disabled:opacity-60`}
+                >
+                  {/* Preview thumbnail */}
+                  <div className={`rounded-lg mb-3 h-28 flex items-center justify-center overflow-hidden ${
+                    tpl.id === 'standard' ? 'bg-gray-50' : tpl.id === 'rainbow' ? 'bg-pink-50' : 'bg-amber-50/60'
+                  } ${isLocked ? 'opacity-50' : ''}`}>
+                    {tpl.id === 'standard' ? <StandardPreview /> : tpl.id === 'rainbow' ? <RainbowPreview /> : <AcademicPreview />}
                   </div>
-                )}
-              </button>
-            ))}
+
+                  <div className="font-semibold text-sm text-gray-900 flex items-center gap-1.5">
+                    {tpl.name}
+                    {isLocked && (
+                      <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">{tpl.description}</div>
+
+                  {selected === tpl.id && !isLocked && (
+                    <div className="absolute top-2 right-2 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+
+                  {isLocked && selected === tpl.id && (
+                    <div className="absolute top-2 right-2 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
         <div className="px-6 pb-6 pt-2">
-          <button
-            onClick={() => onSelect(selected)}
-            disabled={loading}
-            className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Генерация PDF...
-              </>
-            ) : (
-              <>
+          {isLockedStyle ? (
+            <div>
+              <button
+                onClick={onUpgrade}
+                className="w-full h-11 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
                 </svg>
-                Скачать
-              </>
-            )}
-          </button>
+                Доступно по подписке
+              </button>
+              <p className="text-xs text-gray-400 text-center mt-2">Дополнительные стили PDF доступны с тарифа Начинающий</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => onSelect(selected)}
+              disabled={loading}
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Генерация PDF...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Скачать
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

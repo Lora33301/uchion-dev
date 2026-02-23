@@ -12,6 +12,7 @@ import EditableWorksheetContent from '../components/EditableWorksheetContent'
 import EditModeToolbar from '../components/EditModeToolbar'
 import UnsavedChangesDialog, { useBeforeUnload } from '../components/UnsavedChangesDialog'
 import PdfTemplateModal, { type PdfTemplateId } from '../components/PdfTemplateModal'
+import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 
 const SidebarNav = ({ activePage, hasAssignments, hasTest }: { activePage: number, hasAssignments: boolean, hasTest: boolean }) => (
   <nav className="hidden xl:flex flex-col gap-2 fixed left-8 top-32 w-40 text-sm print:hidden">
@@ -63,6 +64,9 @@ export default function WorksheetPage() {
   const [regeneratingIndex, setRegeneratingIndex] = useState<{ index: number; isTest: boolean } | null>(null)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [showPlansModal, setShowPlansModal] = useState(false)
+
+  const canUseStyles = user?.limits?.pdfTemplateStyles !== false
 
   // Worksheet editor hook
   const editor = useWorksheetEditor({
@@ -367,6 +371,13 @@ export default function WorksheetPage() {
         onClose={() => setShowPdfModal(false)}
         onSelect={handlePdfTemplateSelect}
         loading={pdfLoading}
+        canUseStyles={canUseStyles}
+        onUpgrade={() => { setShowPdfModal(false); setShowPlansModal(true) }}
+      />
+
+      <SubscriptionPlansModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
       />
 
       {/* HEADER (Hidden on Print) */}

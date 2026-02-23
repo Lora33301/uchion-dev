@@ -18,6 +18,7 @@ export interface PlanLimits {
   canGeneratePresentation: boolean
   allowedSlideCounts: number[]
   dailyRegenLimit: number // 0=forbidden, -1=unlimited
+  pdfTemplateStyles: boolean
   pdfWatermark: boolean
 }
 

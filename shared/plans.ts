@@ -19,6 +19,7 @@ export interface PlanConfig {
   canGeneratePresentation: boolean
   allowedSlideCounts: number[]
   dailyRegenLimit: number // 0=forbidden, -1=unlimited
+  pdfTemplateStyles: boolean // can use non-standard PDF styles (rainbow, academic)
   pdfWatermark: boolean
   earlyAccess: boolean
 }
@@ -37,6 +38,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     canGeneratePresentation: false,
     allowedSlideCounts: [],
     dailyRegenLimit: 0,
+    pdfTemplateStyles: false,
     pdfWatermark: true,
     earlyAccess: false,
   },
@@ -53,6 +55,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     canGeneratePresentation: false,
     allowedSlideCounts: [],
     dailyRegenLimit: 3,
+    pdfTemplateStyles: true,
     pdfWatermark: false,
     earlyAccess: false,
   },
@@ -69,6 +72,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     canGeneratePresentation: true,
     allowedSlideCounts: [12],
     dailyRegenLimit: 6,
+    pdfTemplateStyles: true,
     pdfWatermark: false,
     earlyAccess: false,
   },
@@ -85,6 +89,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     canGeneratePresentation: true,
     allowedSlideCounts: [12, 18, 24],
     dailyRegenLimit: 10,
+    pdfTemplateStyles: true,
     pdfWatermark: false,
     earlyAccess: false,
   },

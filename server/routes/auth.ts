@@ -148,6 +148,7 @@ router.get('/me', async (req: Request, res: Response) => {
         canGeneratePresentation: planConfig.canGeneratePresentation,
         allowedSlideCounts: planConfig.allowedSlideCounts,
         dailyRegenLimit: planConfig.dailyRegenLimit,
+        pdfTemplateStyles: planConfig.pdfTemplateStyles,
         pdfWatermark: planConfig.pdfWatermark,
       },
       usage: {

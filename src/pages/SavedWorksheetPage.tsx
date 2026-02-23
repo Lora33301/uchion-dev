@@ -12,6 +12,7 @@ import EditableWorksheetContent from '../components/EditableWorksheetContent'
 import EditModeToolbar from '../components/EditModeToolbar'
 import UnsavedChangesDialog, { useBeforeUnload } from '../components/UnsavedChangesDialog'
 import PdfTemplateModal, { type PdfTemplateId } from '../components/PdfTemplateModal'
+import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 
 function LoadingSpinner() {
   return (
@@ -69,6 +70,9 @@ export default function SavedWorksheetPage() {
   const [regeneratingIndex, setRegeneratingIndex] = useState<{ index: number; isTest: boolean } | null>(null)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [showPlansModal, setShowPlansModal] = useState(false)
+
+  const canUseStyles = user?.limits?.pdfTemplateStyles !== false
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -359,6 +363,13 @@ export default function SavedWorksheetPage() {
         onClose={() => setShowPdfModal(false)}
         onSelect={handlePdfTemplateSelect}
         loading={pdfLoading}
+        canUseStyles={canUseStyles}
+        onUpgrade={() => { setShowPdfModal(false); setShowPlansModal(true) }}
+      />
+
+      <SubscriptionPlansModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
       />
 
       {/* HEADER */}
