@@ -120,12 +120,6 @@ export default function Header() {
               >
                 <UserIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Личный кабинет</span>
-                {/* Paid plan badge */}
-                {user.subscription && user.subscription.plan !== 'free' && (
-                  <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-gradient-to-r from-[#8C52FF] to-[#A16BFF] text-white leading-none ml-0.5">
-                    {user.subscription.plan === 'starter' ? 'START' : user.subscription.plan === 'teacher' ? 'PRO' : 'EXPERT'}
-                  </span>
-                )}
               </Link>
               {user.role === 'admin' && (
                 <Link

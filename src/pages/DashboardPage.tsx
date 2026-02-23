@@ -162,8 +162,8 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           {/* Generations with progress bar */}
           <div
-            className="stat-card flex flex-col gap-3 px-5 py-4 rounded-2xl cursor-pointer group hover:shadow-lg hover:border-purple-200 transition-all"
-            onClick={() => setShowBuyModal(true)}
+            className={`stat-card flex flex-col gap-3 px-5 py-4 rounded-2xl transition-all ${isLimitExhausted && isPaidPlan && subStatus === 'active' ? 'cursor-pointer group hover:shadow-lg hover:border-purple-200' : ''}`}
+            onClick={isLimitExhausted && isPaidPlan && subStatus === 'active' ? () => setShowBuyModal(true) : undefined}
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
@@ -173,15 +173,12 @@ export default function DashboardPage() {
                 <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Генерации</span>
                 <p className="text-sm font-bold text-slate-900">{user.generationsLeft} осталось</p>
               </div>
-              <div className="text-xs text-purple-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                + Пополнить
-              </div>
             </div>
             {/* Progress bar */}
             <div className="progress-bar-container">
               <div className={progressBarClass} style={{ width: `${progressPercent}%` }}></div>
             </div>
-            {isLimitExhausted && (
+            {isLimitExhausted && isPaidPlan && subStatus === 'active' && (
               <span className="text-xs font-semibold text-[#8C52FF]">
                 Нажмите чтобы пополнить →
               </span>
