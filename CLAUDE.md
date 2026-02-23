@@ -136,6 +136,10 @@ npm run db:studio        # Open Drizzle Studio
     ai-models.ts       # Model selection logic (per subject, per tier, per grade)
     ai-usage.ts        # AI token usage and cost tracking
     email.ts           # Email sending (Unisender Go, OTP codes)
+/server                 # Express server (continued)
+  /lib
+    prodamus.ts        # Prodamus helpers (payment links, subscription links, HMAC signature)
+    billing-effects.ts # Product effects (generations, subscriptions)
 /src                   # Frontend React app
   /components          # UI components
     EditableWorksheetContent.tsx  # All 5 task types editing
@@ -175,6 +179,7 @@ npm run db:studio        # Open Drizzle Studio
 /shared                # Shared types
   worksheet.ts         # Zod schemas (Subject, TaskTypeId, Worksheet, etc.)
   types.ts             # Presentation types, dashboard types, error codes
+  plans.ts             # Subscription plans config (single source of truth)
 /db                    # Database schema (Drizzle ORM)
 /tests                 # Test suites
   /unit                # Vitest unit tests
@@ -293,10 +298,15 @@ UNISENDER_GO_API_KEY=xxx
 # Telegram Bot (optional, for admin alerts)
 TELEGRAM_BOT_TOKEN=xxx
 
-# Payments (optional)
+# Payments (Prodamus)
 PRODAMUS_SECRET=xxx
 PRODAMUS_PAYFORM_URL=https://your-shop.payform.ru/
 APP_URL=http://localhost:3000
+
+# Subscriptions (Prodamus subscription IDs from panel)
+PRODAMUS_SUBSCRIPTION_STARTER_ID=xxx
+PRODAMUS_SUBSCRIPTION_TEACHER_ID=xxx
+PRODAMUS_SUBSCRIPTION_EXPERT_ID=xxx
 ```
 
 ### Production
@@ -334,13 +344,13 @@ Key files:
 ## Database Schema (`db/schema.ts`)
 
 12 таблиц:
-- `users` -- пользователи (role, provider: 'yandex'|'email', generationsLeft, telegramChatId, wantsAlerts)
+- `users` -- пользователи (role, provider: 'yandex'|'email', generationsLeft, subscriptionPlan, telegramChatId, wantsAlerts)
 - `folders` -- папки для листов и презентаций (вложенность, цвет, сортировка)
 - `worksheets` -- рабочие листы (subject, grade, topic, difficulty, content JSON)
 - `generations` -- лог генераций (status, errorMessage, startedAt, completedAt)
-- `subscriptions` -- подписки (plan: free/basic/premium, status)
+- `subscriptions` -- подписки (plan: starter/teacher/expert, status: active/past_due/cancelled/expired, prodamusSubscriptionId, prodamusProfileId, generationsPerPeriod, currentPeriodStart/End, customerEmail/Phone)
 - `payments` -- платежи (amount в копейках, status)
-- `payment_intents` -- интенты Prodamus (productCode, providerOrderId, metadata)
+- `payment_intents` -- интенты Prodamus (productCode, providerOrderId, metadata). Также хранит pending subscription intents (productCode: `sub_<plan>`)
 - `webhook_events` -- идемпотентность вебхуков (eventKey, rawPayloadHash)
 - `refresh_tokens` -- JWT refresh tokens (jti, familyId, revokedAt)
 - `email_codes` -- OTP коды (email, code, expiresAt, attempts, usedAt)
@@ -356,6 +366,8 @@ Key files:
 - `DifficultyLevel` = `'easy' | 'medium' | 'hard'`
 - `WorksheetFormatId` = `'open_only' | 'test_only' | 'test_and_open'`
 - `PresentationThemePreset` = `'professional' | 'educational' | 'minimal' | 'scientific' | 'kids' | 'school'`
+- `SubscriptionPlanId` = `'free' | 'starter' | 'teacher' | 'expert'` (из `shared/plans.ts`)
+- `PaidPlanId` = `'starter' | 'teacher' | 'expert'`
 - `GenerateSchema` -- валидация формы (subject, grade 1-11, topic, taskTypes, difficulty, format, variantIndex)
 - `GeneratePresentationPayload` -- валидация формы презентации
 
@@ -402,8 +414,8 @@ throw ApiError.internal('Server error')
 - `/api/auth/yandex/callback` -- callback Yandex OAuth
 - `/api/auth/email/send-code` -- отправка OTP кода
 - `/api/auth/email/verify-code` -- проверка OTP кода
-- `/api/admin/*` -- админ-панель (stats, users, generations, payments, alerts, settings, ai-costs)
-- `/api/billing/*` -- платежи (products, create-link, webhook, payment-status)
+- `/api/admin/*` -- админ-панель (stats, users, generations, payments, subscriptions, alerts, settings, ai-costs)
+- `/api/billing/*` -- платежи и подписки (products, create-link, subscribe, cancel-subscription, webhook, payment-status, subscription-plans)
 - `POST /api/telegram/webhook` -- Telegram bot webhook
 - `GET /api/health` -- healthcheck
 
@@ -489,7 +501,7 @@ throw ApiError.internal('Server error')
 4. **Config-driven генерация** -- новые предметы добавляются через конфиги, не код
 5. **Grades 1-11** -- не только начальная школа, поддерживаются все классы
 6. **5 типов заданий** -- single_choice, multiple_choice, open_question, matching, fill_blank
-7. **Prodamus для платежей** -- webhook idempotency через webhook_events table
+7. **Prodamus для платежей и подписок** -- webhook idempotency через webhook_events table, рекуррентные подписки через клубный функционал
 8. **PDF через Puppeteer** -- не pdfkit, HTML-шаблон конвертируется в PDF
 9. **Разные модели для платных/бесплатных** -- gpt-4.1 vs deepseek-v3.2
 10. **Мульти-агентная валидация** -- разные модели для STEM и гуманитарных предметов
@@ -497,3 +509,58 @@ throw ApiError.internal('Server error')
 12. **Email OTP** -- passwordless вход через Unisender Go, не Telegram Login Widget
 13. **Grade-tiered verification** -- 1-6 классы используют дешевую модель
 14. **AI usage tracking** -- все AI вызовы логируются в таблицу ai_usage с токенами и стоимостью
+15. **Подписочная система** -- рекуррентные платежи через Prodamus (клубный функционал), 3 платных тарифа (starter/teacher/expert), конфиг в `shared/plans.ts`
+16. **Prodamus НЕ пробрасывает `_param_*`** -- в subscription webhooks кастомные поля не приходят, userId резолвится через fallback-цепочку (email в payment_intents -> email в users -> prodamusProfileId/subId)
+
+## Subscription System (Prodamus)
+
+### Тарифные планы (`shared/plans.ts`)
+
+| План | Цена | Генераций/мес | Папок | Модель |
+|------|------|---------------|-------|--------|
+| free | 0 | 5 (одноразовые) | 2 | deepseek (бесплатная) |
+| starter | 390/мес | 25 | 10 | gpt-4.1 (платная) |
+| teacher | 890/мес | 60 | 10 | gpt-4.1 (платная) |
+| expert | 1690/мес | 120 | 10 | gpt-4.1 (платная) |
+
+### Архитектура
+
+Рекуррентные подписки реализованы через **клубный функционал Prodamus**. Каждый тариф имеет свой subscription ID в панели Prodamus (env: `PRODAMUS_SUBSCRIPTION_*_ID`).
+
+### Подписочный flow
+1. Пользователь выбирает тариф на фронтенде
+2. `POST /api/billing/subscribe` -- создаёт ссылку на оплату + pending payment_intent (`sub_<plan>`)
+3. Prodamus показывает платёжную форму, пользователь оплачивает
+4. Prodamus шлёт webhook на `POST /api/billing/webhook` с объектом `subscription`
+5. Webhook handler резолвит userId через fallback-цепочку, активирует подписку
+6. При автопродлении Prodamus повторяет webhook (autopayment=1)
+7. При неудачном списании -- статус `past_due`, генерации не сбрасываются
+8. При деактивации -- статус `expired`, пользователь даунгрейдится на free
+
+### Webhook userId fallback (Prodamus НЕ пробрасывает `_param_*` поля)
+1. `payload._param_userId` -- прямой pass-through (не работает для подписок)
+2. `customer_email` -> поиск pending `payment_intent` с `sub_*` productCode
+3. `customer_email` -> прямой поиск в таблице `users`
+4. `prodamusProfileId` -> поиск в таблице `subscriptions` (для автопродлений)
+5. `prodamusSubscriptionId` -> поиск в таблице `subscriptions`
+
+### Key files
+- `shared/plans.ts` -- конфигурация тарифов (single source of truth)
+- `server/routes/billing.ts` -- endpoints подписки + webhook handler
+- `server/lib/prodamus.ts` -- генерация ссылок, верификация подписи
+- `db/schema.ts` -- таблица subscriptions
+- `src/components/BuyGenerationsModal.tsx` -- UI выбора тарифа
+
+### Webhook endpoints (оба ведут к одному handler)
+- `POST /api/billing/webhook` -- основной (настроен в Prodamus)
+- `POST /api/billing/prodamus/webhook` -- legacy alias
+
+### Webhook подпись
+- Заголовок `Sign` в формате `"Sign: <hmac_hash>"` -- нужно strip prefix
+- HMAC-SHA256 с `PRODAMUS_SECRET`
+- CORS пропускается для webhook paths, но HMAC обязателен
+
+### Идемпотентность
+- `webhook_events` таблица с уникальным ключом `(provider, event_key)`
+- Event key для подписок: `sub:<subscriptionId>:<paymentNum>:<status>`
+- Обработка дубликата через `INSERT ... ON CONFLICT` (PostgreSQL error 23505)
