@@ -112,12 +112,12 @@ throw ApiError.internal('Server error')
 
 ## Subscription Plans (`shared/plans.ts`)
 
-| Plan | Price | Gens/mo | Folders | Model |
-|------|-------|---------|---------|-------|
-| free | 0 | 5 (one-time) | 2 | deepseek-v3.2 |
-| starter | 390/mo | 25 | 10 | gpt-4.1 |
-| teacher | 890/mo | 60 | 10 | gpt-4.1 |
-| expert | 1690/mo | 120 | 10 | gpt-4.1 |
+| Plan | Display Name | Price | Gens/mo | Folders | Model |
+|------|-------------|-------|---------|---------|-------|
+| free | Бесплатный | 0 | 5 (one-time) | 2 | deepseek-v3.2 |
+| starter | Начинающий | 390/mo | 25 | 10 | gpt-4.1 |
+| teacher | Методист | 890/mo | 60 | 10 | gpt-4.1 |
+| expert | Эксперт | 1690/mo | 120 | 10 | gpt-4.1 |
 
 Recurring via Prodamus club subscriptions. See `.claude/docs/subscriptions.md`.
 
@@ -149,6 +149,16 @@ PRODAMUS_SUBSCRIPTION_EXPERT_ID=xxx
 ```
 
 Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
+
+## UI Patterns
+
+- **Optimistic deletes**: Worksheet/presentation deletion uses `onMutate` to remove items from React Query cache instantly, then `onSettled` re-fetches. Applied in `WorksheetManager`, `WorksheetsListPage`, `PresentationsListPage`, `DashboardPage`.
+- **Delete confirmation**: All delete buttons use `confirm()` dialog. No double-click patterns.
+- **Usage limits display**: Shown inside list pages (`WorksheetsListPage`, `PresentationsListPage`) in subtitle and folder headers, NOT on dashboard main screen.
+- **Buy generations button**: Only shown when `generationsLeft === 0` AND user has active paid subscription. Not always visible.
+- **Plan badge**: NOT shown in Header "Личный кабинет" button. Plan info only displayed inside DashboardPage.
+- **GeneratePage tab switching**: Supports `/?tab=presentation` URL param to open in presentation mode. Dashboard "Создать первую" link uses this.
+- **Plan display names**: free=Бесплатный, starter=Начинающий, teacher=Методист, expert=Эксперт. Use names from `shared/plans.ts`, NOT hardcoded.
 
 ## Critical Rules
 
