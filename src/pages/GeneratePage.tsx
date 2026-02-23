@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -168,7 +168,10 @@ export default function GeneratePage() {
   const greeting = getGreeting()
 
   // Mode: worksheet or presentation
-  const [mode, setMode] = useState<GenerateMode>('worksheet')
+  const [searchParams] = useSearchParams()
+  const [mode, setMode] = useState<GenerateMode>(
+    searchParams.get('tab') === 'presentation' ? 'presentation' : 'worksheet'
+  )
 
   // Presentation result state
   const [generatedPresentation, setGeneratedPresentation] = useState<{

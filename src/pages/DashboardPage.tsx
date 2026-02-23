@@ -278,7 +278,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-slate-400 text-sm mb-3">Презентаций пока нет</p>
                 <Link
-                  to="/presentations/generate"
+                  to="/?tab=presentation"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#8C52FF] text-white text-sm font-medium hover:bg-[#7B3FEE] transition-colors"
                 >
                   Создать первую

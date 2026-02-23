@@ -194,7 +194,7 @@ export default function GeneratePresentationPage() {
     // Check plan: presentations require teacher/expert
     if (!canGeneratePresentation(user)) {
       setErrorCode('PLAN_REQUIRED')
-      setErrorText('Генерация презентаций доступна на тарифах Учитель и Эксперт.')
+      setErrorText('Генерация презентаций доступна на тарифах Методист и Эксперт.')
       return
     }
 
@@ -464,7 +464,7 @@ export default function GeneratePresentationPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                   <div>
-                    <p className="font-semibold text-base text-purple-900 mb-1">Презентации доступны на тарифах Учитель и Эксперт</p>
+                    <p className="font-semibold text-base text-purple-900 mb-1">Презентации доступны на тарифах Методист и Эксперт</p>
                     <p className="text-purple-600">Перейдите на подходящий тариф, чтобы генерировать презентации</p>
                   </div>
                   <button
@@ -493,7 +493,7 @@ export default function GeneratePresentationPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                     <div>
-                      <p className="font-semibold text-base mb-1">Презентации доступны на тарифах Учитель и Эксперт</p>
+                      <p className="font-semibold text-base mb-1">Презентации доступны на тарифах Методист и Эксперт</p>
                       <p className="text-purple-600">Перейдите на подходящий тариф, чтобы генерировать презентации</p>
                     </div>
                     <button
