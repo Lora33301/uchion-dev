@@ -230,6 +230,10 @@ export default function GeneratePage() {
   const watchThemePreset = presentationForm.watch('themePreset')
   const watchSlideCount = presentationForm.watch('slideCount')
 
+  // Presentation cost by slide count
+  const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
+  const presentationCost = PRESENTATION_COST[watchSlideCount ?? 12] ?? 2
+
   // Get available grades for selected subject (worksheet)
   const availableGrades = useMemo(() => {
     const subjectConfig = SUBJECTS.find(s => s.value === watchSubject)
@@ -447,7 +451,7 @@ export default function GeneratePage() {
     }
 
     // Check generation limits
-    if (!canGenerate(user)) {
+    if (!canGenerate(user) || generationsLeft < presentationCost) {
       setShowBuyModal(true)
       return
     }
@@ -969,7 +973,7 @@ export default function GeneratePage() {
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      disabled={presentationMutation.isPending || (!!user && generationsLeft < 1)}
+                      disabled={presentationMutation.isPending || (!!user && generationsLeft < presentationCost)}
                       className="group relative inline-flex h-12 px-8 items-center justify-center overflow-hidden rounded-xl bg-[#A855F7]/80 hover:bg-[#A855F7]/90 text-base font-semibold text-white shadow-md shadow-purple-400/20 transition-all hover:shadow-purple-400/30 disabled:opacity-60 disabled:hover:bg-[#A855F7]/80"
                     >
                       {presentationMutation.isPending ? (
@@ -987,7 +991,7 @@ export default function GeneratePage() {
                             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                             </svg>
-                            1
+                            {presentationCost}
                           </span>
                         </span>
                       )}
