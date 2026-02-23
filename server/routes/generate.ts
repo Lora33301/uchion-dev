@@ -412,28 +412,6 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
     })
   }
 
-  // Atomically decrement generationsLeft (costs 1 generation)
-  const regenCost = 1
-  const [decremented] = await db
-    .update(users)
-    .set({
-      generationsLeft: sql`${users.generationsLeft} - ${regenCost}`,
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(users.id, userId),
-      sql`${users.generationsLeft} >= ${regenCost}`
-    ))
-    .returning({ generationsLeft: users.generationsLeft })
-
-  if (!decremented) {
-    return res.status(403).json({
-      status: 'error',
-      code: 'LIMIT_EXCEEDED',
-      message: 'Лимит генераций исчерпан. Приобретите дополнительные генерации.',
-    })
-  }
-
   try {
     const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
 
@@ -458,16 +436,6 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
     })
   } catch (err) {
     console.error('[API] Regenerate task error:', err)
-
-    // Rollback credit
-    await db
-      .update(users)
-      .set({
-        generationsLeft: sql`${users.generationsLeft} + ${regenCost}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .catch((rollbackErr) => console.error('[API] Failed to rollback generationsLeft:', rollbackErr))
 
     return res.status(500).json({
       status: 'error',

@@ -313,7 +313,7 @@ export default function GeneratePage() {
       refreshAuth()
 
       saveSession(sessionId, {
-        payload: { subject: form.getValues('subject'), grade: form.getValues('grade'), topic: form.getValues('topic') },
+        payload: { subject: form.getValues('subject'), grade: form.getValues('grade'), topic: form.getValues('topic'), difficulty: form.getValues('difficulty') },
         worksheet,
         pdfBase64: worksheet.pdfBase64
       })
