@@ -83,16 +83,20 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     })
   }
 
-  // 3b. Atomically decrement generationsLeft (costs 1 generation)
+  // Presentation generation cost based on slide count
+  const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
+  const cost = PRESENTATION_COST[slideCount] ?? 2
+
+  // 3b. Atomically decrement generationsLeft
   const [decremented] = await db
     .update(users)
     .set({
-      generationsLeft: sql`${users.generationsLeft} - 1`,
+      generationsLeft: sql`${users.generationsLeft} - ${cost}`,
       updatedAt: new Date(),
     })
     .where(and(
       eq(users.id, userId),
-      gt(users.generationsLeft, 0)
+      sql`${users.generationsLeft} >= ${cost}`
     ))
     .returning({ generationsLeft: users.generationsLeft })
 
@@ -111,7 +115,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     await db
       .update(users)
       .set({
-        generationsLeft: sql`${users.generationsLeft} + 1`,
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
@@ -254,7 +258,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     await db
       .update(users)
       .set({
-        generationsLeft: sql`${users.generationsLeft} + 1`,
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))

@@ -91,6 +91,7 @@ export default function GeneratePresentationPage() {
   const presentationAllowed = !user || canGeneratePresentation(user)
   const greeting = getGreeting()
 
+
   // Result state
   const [generatedResult, setGeneratedResult] = useState<{
     id: string
@@ -116,6 +117,10 @@ export default function GeneratePresentationPage() {
   const watchSubject = form.watch('subject')
   const watchThemePreset = form.watch('themePreset')
   const watchSlideCount = form.watch('slideCount')
+
+  // Presentation cost by slide count
+  const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
+  const presentationCost = PRESENTATION_COST[watchSlideCount ?? 12] ?? 2
 
   // Get available grades for selected subject
   const availableGrades = useMemo(() => {
@@ -199,7 +204,7 @@ export default function GeneratePresentationPage() {
     }
 
     // Check limits
-    if (!canGenerate(user)) {
+    if (!canGenerate(user) || generationsLeft < presentationCost) {
       setErrorCode('LIMIT_EXCEEDED')
       setErrorText('Лимит генераций исчерпан. Приобретите дополнительные генерации.')
       return
@@ -430,7 +435,7 @@ export default function GeneratePresentationPage() {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  disabled={mutation.isPending || (!!user && (!presentationAllowed || generationsLeft < 1))}
+                  disabled={mutation.isPending || (!!user && (!presentationAllowed || generationsLeft < presentationCost))}
                   className="group relative inline-flex h-12 px-8 items-center justify-center overflow-hidden rounded-xl bg-[#A855F7]/80 hover:bg-[#A855F7]/90 text-base font-semibold text-white shadow-md shadow-purple-400/20 transition-all hover:shadow-purple-400/30 disabled:opacity-60 disabled:hover:bg-[#A855F7]/80"
                 >
                   {mutation.isPending ? (
@@ -448,7 +453,7 @@ export default function GeneratePresentationPage() {
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                         </svg>
-                        1
+                        {presentationCost}
                       </span>
                     </span>
                   )}
