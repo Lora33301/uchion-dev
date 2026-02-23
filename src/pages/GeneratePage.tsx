@@ -50,9 +50,9 @@ const FORMATS: { id: WorksheetFormatId; name: string; variants: FormatVariant[] 
     id: 'test_and_open',
     name: 'Тест + задания',
     variants: [
-      { openTasks: 5, testQuestions: 10, generations: 1 },
-      { openTasks: 10, testQuestions: 15, generations: 2 },
-      { openTasks: 15, testQuestions: 20, generations: 3 },
+      { openTasks: 5, testQuestions: 10, generations: 2 },
+      { openTasks: 10, testQuestions: 15, generations: 3 },
+      { openTasks: 15, testQuestions: 20, generations: 4 },
     ],
   },
   {
