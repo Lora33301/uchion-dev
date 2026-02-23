@@ -536,13 +536,18 @@ export default function PresentationsListPage() {
             <span className="font-medium">Назад в кабинет</span>
           </Link>
           <h1 className="text-3xl font-bold text-slate-900">Презентации</h1>
-          <p className="text-slate-500 mt-1">Всего: {totalPresentations}</p>
+          <p className="text-slate-500 mt-1">
+            Всего: {totalPresentations}
+            {user?.limits?.maxPresentations != null && user.limits.maxPresentations !== -1 && (
+              <span className="text-slate-400"> / {user.limits.maxPresentations}</span>
+            )}
+          </p>
         </div>
 
         {/* Folders Filter */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-slate-500">Папки ({folders.length}/{user?.subscription?.plan === 'free' ? 2 : 10})</h2>
+            <h2 className="text-sm font-medium text-slate-500">Папки ({folders.length}/{user?.limits?.folders ?? (user?.subscription?.plan === 'free' ? 2 : 10)})</h2>
             <button
               onClick={() => setCreateFolderModal(true)}
               className="text-sm text-[#8C52FF] hover:text-purple-700 font-medium"

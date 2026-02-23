@@ -534,13 +534,18 @@ export default function WorksheetsListPage() {
             <span className="font-medium">Назад в кабинет</span>
           </Link>
           <h1 className="text-3xl font-bold text-slate-900">Рабочие листы</h1>
-          <p className="text-slate-500 mt-1">Всего: {totalWorksheets}</p>
+          <p className="text-slate-500 mt-1">
+            Всего: {totalWorksheets}
+            {user?.limits?.maxWorksheets != null && user.limits.maxWorksheets !== -1 && (
+              <span className="text-slate-400"> / {user.limits.maxWorksheets}</span>
+            )}
+          </p>
         </div>
 
         {/* Folders Filter */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-slate-500">Папки ({folders.length}/{user?.subscription?.plan === 'free' ? 2 : 10})</h2>
+            <h2 className="text-sm font-medium text-slate-500">Папки ({folders.length}/{user?.limits?.folders ?? (user?.subscription?.plan === 'free' ? 2 : 10)})</h2>
             <button
               onClick={() => setCreateFolderModal(true)}
               className="text-sm text-[#8C52FF] hover:text-purple-700 font-medium"
