@@ -803,16 +803,33 @@ async function handleSubscriptionWebhook(
       )
     )
 
-  // Determine plan from param or existing subscription
+  // Determine plan from param, Prodamus subscription ID, or existing subscription
   let plan = planFromParam
+
+  // Fallback: reverse-lookup plan from Prodamus subscription ID
+  if ((!plan || !isPaidPlan(plan)) && prodamusSubId) {
+    for (const [planId, subId] of Object.entries(PRODAMUS_SUBSCRIPTION_IDS)) {
+      if (subId && subId === prodamusSubId) {
+        plan = planId
+        console.log(`[Subscription Webhook] Resolved plan by prodamusSubId: ${plan}`)
+        break
+      }
+    }
+  }
+
   if (!plan || !isPaidPlan(plan)) {
-    // Try to get from existing subscription
+    // Try to get from existing subscription (but only if it's a paid plan)
     const [existingSub] = await db
       .select({ plan: subscriptions.plan })
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
       .limit(1)
-    plan = existingSub?.plan || 'starter'
+    if (existingSub?.plan && isPaidPlan(existingSub.plan)) {
+      plan = existingSub.plan
+    } else {
+      plan = 'starter' // last resort default
+    }
+    console.log(`[Subscription Webhook] Plan fallback from DB/default: ${plan}`)
   }
 
   const planConfig = getPlanConfig(plan)
