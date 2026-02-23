@@ -214,19 +214,31 @@ app.use(errorHandler)
 
 // ==================== START SERVER ====================
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+// Run database migrations before accepting requests
+import { runMigrations } from './db/index.js'
 
-  // Send startup alert to admins (non-blocking)
-  import('./api/_lib/telegram/bot.js').then(({ sendAdminAlert }) => {
-    const env = process.env.NODE_ENV || 'development'
-    const time = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })
-    sendAdminAlert({
-      message: `Сервер запущен\n\nПорт: ${PORT}\nОкружение: ${env}\nВремя: ${time}`,
-      level: 'info',
-    }).catch(() => { /* ignore if Telegram unavailable */ })
-  }).catch(() => { /* ignore */ })
+async function start() {
+  await runMigrations()
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+
+    // Send startup alert to admins (non-blocking)
+    import('./api/_lib/telegram/bot.js').then(({ sendAdminAlert }) => {
+      const env = process.env.NODE_ENV || 'development'
+      const time = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })
+      sendAdminAlert({
+        message: `Сервер запущен\n\nПорт: ${PORT}\nОкружение: ${env}\nВремя: ${time}`,
+        level: 'info',
+      }).catch(() => { /* ignore if Telegram unavailable */ })
+    }).catch(() => { /* ignore */ })
+  })
+}
+
+start().catch((err) => {
+  console.error('[Fatal] Failed to start server:', err)
+  process.exit(1)
 })
 
 export default app

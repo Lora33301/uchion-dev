@@ -8,7 +8,9 @@ console.log('[ENV] Loaded .env.local, AI_MODEL_FREE =', process.env.AI_MODEL_FRE
 dotenv.config({ path: '.env' })
 
 import { drizzle } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
+import { fileURLToPath } from 'url'
 import * as schema from './schema.js'
 
 if (!process.env.DATABASE_URL) {
@@ -24,6 +26,27 @@ const client = postgres(process.env.DATABASE_URL, {
 
 // Create drizzle instance
 export const db = drizzle(client, { schema })
+
+// Run pending migrations automatically on startup
+// In dev: db/index.ts -> db/migrations
+// In prod (compiled): dist-server/db/index.js -> but migrations are at db/migrations (project root)
+const __dbFilename = fileURLToPath(import.meta.url)
+const __dbDirname = path.dirname(__dbFilename)
+const isCompiled = __dbDirname.includes('dist-server')
+const migrationsFolder = isCompiled
+  ? path.join(__dbDirname, '..', '..', 'db', 'migrations')
+  : path.join(__dbDirname, 'migrations')
+
+export async function runMigrations() {
+  console.log('[DB] Running migrations from:', migrationsFolder)
+  try {
+    await migrate(db, { migrationsFolder })
+    console.log('[DB] Migrations applied successfully')
+  } catch (error) {
+    console.error('[DB] Migration failed:', error)
+    throw error
+  }
+}
 
 // Export schema for use in other files
 export { schema }

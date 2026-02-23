@@ -53,6 +53,9 @@ COPY --from=builder /app/dist-server ./dist-server
 # Copy fonts directory for PDF generation
 COPY --from=builder /app/api/_assets ./api/_assets
 
+# Copy database migrations (SQL files, not compiled by TypeScript)
+COPY --from=builder /app/db/migrations ./db/migrations
+
 # Expose port
 EXPOSE 3000
 
