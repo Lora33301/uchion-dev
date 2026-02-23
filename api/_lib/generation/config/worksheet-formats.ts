@@ -63,9 +63,9 @@ export const worksheetFormats: Record<WorksheetFormatId, WorksheetFormatConfig> 
     name: 'Тест + задания',
     description: 'Комбинация теста и заданий с развёрнутым ответом',
     variants: [
-      { openTasks: 5, testQuestions: 10, generations: 1 },
-      { openTasks: 10, testQuestions: 15, generations: 2, label: '+Профи' },
-      { openTasks: 15, testQuestions: 20, generations: 3, label: '+Профи' },
+      { openTasks: 5, testQuestions: 10, generations: 2 },
+      { openTasks: 10, testQuestions: 15, generations: 3, label: '+Профи' },
+      { openTasks: 15, testQuestions: 20, generations: 4, label: '+Профи' },
     ],
   },
 }

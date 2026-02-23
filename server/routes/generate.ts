@@ -14,6 +14,7 @@ import { withAIContext } from '../../api/_lib/ai-usage.js'
 import type { GeneratePayload, Worksheet } from '../../shared/types.js'
 import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchema } from '../../shared/worksheet.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
+import { calculateGenerationCost } from '../../api/_lib/generation/config/worksheet-formats.js'
 
 const router = Router()
 
@@ -38,17 +39,23 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   const input: Input = parse.data
   const userId = req.user.id
 
+  // Calculate generation cost based on format + variant
+  const cost = calculateGenerationCost(
+    input.format ?? 'test_and_open',
+    input.variantIndex ?? 0
+  )
+
   // Atomically decrement generationsLeft -- prevents race condition.
-  // If generationsLeft <= 0, no rows are updated and the user is rejected.
+  // If generationsLeft < cost, no rows are updated and the user is rejected.
   const [decremented] = await db
     .update(users)
     .set({
-      generationsLeft: sql`${users.generationsLeft} - 1`,
+      generationsLeft: sql`${users.generationsLeft} - ${cost}`,
       updatedAt: new Date(),
     })
     .where(and(
       eq(users.id, userId),
-      gt(users.generationsLeft, 0)
+      sql`${users.generationsLeft} >= ${cost}`
     ))
     .returning({ generationsLeft: users.generationsLeft })
 
@@ -77,7 +84,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
       await db
         .update(users)
         .set({
-          generationsLeft: sql`${users.generationsLeft} + 1`,
+          generationsLeft: sql`${users.generationsLeft} + ${cost}`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId))
@@ -97,7 +104,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     await db
       .update(users)
       .set({
-        generationsLeft: sql`${users.generationsLeft} + 1`,
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
@@ -302,7 +309,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     await db
       .update(users)
       .set({
-        generationsLeft: sql`${users.generationsLeft} + 1`,
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
@@ -406,15 +413,16 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
   }
 
   // Atomically decrement generationsLeft (costs 1 generation)
+  const regenCost = 1
   const [decremented] = await db
     .update(users)
     .set({
-      generationsLeft: sql`${users.generationsLeft} - 1`,
+      generationsLeft: sql`${users.generationsLeft} - ${regenCost}`,
       updatedAt: new Date(),
     })
     .where(and(
       eq(users.id, userId),
-      gt(users.generationsLeft, 0)
+      sql`${users.generationsLeft} >= ${regenCost}`
     ))
     .returning({ generationsLeft: users.generationsLeft })
 
@@ -455,7 +463,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
     await db
       .update(users)
       .set({
-        generationsLeft: sql`${users.generationsLeft} + 1`,
+        generationsLeft: sql`${users.generationsLeft} + ${regenCost}`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
