@@ -688,25 +688,36 @@ async function handleSubscriptionWebhook(
   console.log(`[Subscription Webhook] Resolving user: _param_userId=${userId}, email=${customerEmail}, phone=${customerPhone}`)
 
   // Fallback 1: look up pending subscription intent by email
-  if (!userId && customerEmail) {
+  // Always try to resolve plan from intent, even if userId is already known
+  // (Prodamus may forward _param_userId but NOT _param_plan)
+  if (customerEmail) {
+    const intentConditions = [
+      sql`${paymentIntents.productCode} LIKE 'sub_%'`,
+      eq(paymentIntents.status, 'created'),
+    ]
+
+    // If we already have userId, look up intent for this specific user
+    // Otherwise, look up by email
+    if (userId) {
+      intentConditions.push(eq(paymentIntents.userId, userId))
+    } else {
+      intentConditions.push(
+        sql`${paymentIntents.userId} IN (SELECT id FROM users WHERE email = ${customerEmail})`
+      )
+    }
+
     const [intent] = await db
       .select({ userId: paymentIntents.userId, productCode: paymentIntents.productCode })
       .from(paymentIntents)
-      .where(
-        and(
-          sql`${paymentIntents.productCode} LIKE 'sub_%'`,
-          eq(paymentIntents.status, 'created'),
-          sql`${paymentIntents.userId} IN (SELECT id FROM users WHERE email = ${customerEmail})`
-        )
-      )
+      .where(and(...intentConditions))
       .orderBy(sql`${paymentIntents.createdAt} DESC`)
       .limit(1)
 
     if (intent) {
-      userId = intent.userId
+      if (!userId) userId = intent.userId
       // Extract plan from productCode: "sub_starter" -> "starter"
       if (!planFromParam) planFromParam = intent.productCode.replace('sub_', '')
-      console.log(`[Subscription Webhook] Resolved by email intent: userId=${userId}, plan=${planFromParam}`)
+      console.log(`[Subscription Webhook] Resolved by intent: userId=${userId}, plan=${planFromParam}`)
     }
   }
 
