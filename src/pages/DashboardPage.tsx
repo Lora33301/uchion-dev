@@ -129,6 +129,9 @@ export default function DashboardPage() {
   const generationsUsed = generationsTotal - user.generationsLeft
   const progressPercent = Math.min((generationsUsed / Math.max(generationsTotal, 1)) * 100, 100)
   const isLimitExhausted = user.generationsLeft <= 0
+  const limits = user.limits
+  const usage = user.usage
+  const canGeneratePresentation = limits?.canGeneratePresentation ?? false
 
   // Progress bar color based on usage
   let progressBarClass = 'progress-bar-fill'
@@ -244,6 +247,36 @@ export default function DashboardPage() {
             >
               Управление
             </button>
+          </div>
+        )}
+
+        {/* Usage Counters */}
+        {(limits || usage) && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 mb-6 px-1">
+            {limits?.maxWorksheets != null && usage?.worksheets != null && (
+              <span className="text-xs text-slate-400">
+                Рабочие листы:{' '}
+                <span className="font-semibold text-slate-600">
+                  {usage.worksheets} / {limits.maxWorksheets === -1 ? '∞' : limits.maxWorksheets}
+                </span>
+              </span>
+            )}
+            {limits?.folders != null && usage?.folders != null && (
+              <span className="text-xs text-slate-400">
+                Папки:{' '}
+                <span className="font-semibold text-slate-600">
+                  {usage.folders} / {limits.folders === -1 ? '∞' : limits.folders}
+                </span>
+              </span>
+            )}
+            {canGeneratePresentation && limits?.maxPresentations != null && usage?.presentations != null && (
+              <span className="text-xs text-slate-400">
+                Презентации:{' '}
+                <span className="font-semibold text-slate-600">
+                  {usage.presentations} / {limits.maxPresentations === -1 ? '∞' : limits.maxPresentations}
+                </span>
+              </span>
+            )}
           </div>
         )}
 

@@ -14,6 +14,13 @@ export interface PlanConfig {
   isRecurring: boolean
   folders: number
   paidModel: boolean
+  maxWorksheets: number
+  maxPresentations: number
+  canGeneratePresentation: boolean
+  allowedSlideCounts: number[]
+  dailyRegenLimit: number // 0=forbidden, -1=unlimited
+  pdfWatermark: boolean
+  earlyAccess: boolean
 }
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
@@ -25,6 +32,13 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     isRecurring: false,
     folders: 2,
     paidModel: false,
+    maxWorksheets: 15,
+    maxPresentations: 0,
+    canGeneratePresentation: false,
+    allowedSlideCounts: [],
+    dailyRegenLimit: 0,
+    pdfWatermark: true,
+    earlyAccess: false,
   },
   starter: {
     id: 'starter',
@@ -32,8 +46,15 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     price: 390,
     generationsPerPeriod: 25,
     isRecurring: true,
-    folders: 10,
+    folders: 5,
     paidModel: true,
+    maxWorksheets: 20,
+    maxPresentations: 0,
+    canGeneratePresentation: false,
+    allowedSlideCounts: [],
+    dailyRegenLimit: 5,
+    pdfWatermark: false,
+    earlyAccess: false,
   },
   teacher: {
     id: 'teacher',
@@ -43,6 +64,13 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     isRecurring: true,
     folders: 10,
     paidModel: true,
+    maxWorksheets: 50,
+    maxPresentations: 30,
+    canGeneratePresentation: true,
+    allowedSlideCounts: [12],
+    dailyRegenLimit: 10,
+    pdfWatermark: false,
+    earlyAccess: false,
   },
   expert: {
     id: 'expert',
@@ -52,6 +80,13 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
     isRecurring: true,
     folders: 10,
     paidModel: true,
+    maxWorksheets: 100,
+    maxPresentations: 60,
+    canGeneratePresentation: true,
+    allowedSlideCounts: [12, 18, 24],
+    dailyRegenLimit: -1,
+    pdfWatermark: false,
+    earlyAccess: false,
   },
 } as const
 
@@ -75,4 +110,20 @@ export function getPlanConfig(plan: string): PlanConfig {
     return SUBSCRIPTION_PLANS[plan]
   }
   return SUBSCRIPTION_PLANS.free
+}
+
+/** Subscription statuses that count as "active" for plan enforcement */
+export function isActiveSubscription(status: string | null | undefined): boolean {
+  return status === 'active' || status === 'past_due'
+}
+
+/** Get effective plan config for a user based on their subscription status */
+export function getUserPlanConfig(
+  plan: string | null | undefined,
+  subscriptionStatus: string | null | undefined
+): PlanConfig {
+  if (!plan || plan === 'free' || !isActiveSubscription(subscriptionStatus)) {
+    return SUBSCRIPTION_PLANS.free
+  }
+  return getPlanConfig(plan)
 }

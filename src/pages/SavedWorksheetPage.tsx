@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
+import { canRegenerateTask, getRegenRemaining } from '../lib/limits'
 import { fetchWorksheet, formatSubjectName, updateWorksheet as updateWorksheetApi } from '../lib/dashboard-api'
 import { regenerateTask, rebuildPdf } from '../lib/api'
 import { buildWorksheetPdf } from '../lib/pdf-client'
@@ -60,7 +61,7 @@ export default function SavedWorksheetPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { status } = useAuth()
+  const { user, status } = useAuth()
   const worksheetRef = useRef<HTMLDivElement | null>(null)
   const [activePage, setActivePage] = useState(1)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
@@ -466,8 +467,14 @@ export default function SavedWorksheetPage() {
             onUpdateMatchingInstruction={editor.updateMatchingInstruction}
             onUpdateMatchingLeftItem={editor.updateMatchingLeftItem}
             onUpdateMatchingRightItem={editor.updateMatchingRightItem}
-            onRegenerateTask={handleRegenerateTask}
+            onRegenerateTask={canRegenerateTask(user) ? handleRegenerateTask : undefined}
             regeneratingIndex={regeneratingIndex}
+            regenDisabled={canRegenerateTask(user) && getRegenRemaining(user) === 0}
+            regenRemainingLabel={(() => {
+              const remaining = getRegenRemaining(user)
+              if (remaining === null) return null
+              return `Перегенерация: ${remaining} из ${user?.limits?.dailyRegenLimit ?? 0}`
+            })()}
           />
         </div>
       </main>

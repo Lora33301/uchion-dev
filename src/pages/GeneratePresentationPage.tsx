@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { generatePresentation } from '../lib/presentation-api'
 import CustomSelect from '../components/ui/CustomSelect'
 import { useAuth } from '../lib/auth'
-import { getGenerationsLeft, canGenerate } from '../lib/limits'
+import { getGenerationsLeft, canGenerate, canGeneratePresentation, isSlideCountAllowed } from '../lib/limits'
 import Header from '../components/Header'
 import type { PresentationStructure } from '../../shared/types'
 import SlidePreview from '../components/presentations/SlidePreview'
@@ -88,6 +88,7 @@ export default function GeneratePresentationPage() {
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
   const generationsLeft = getGenerationsLeft(user)
+  const presentationAllowed = !user || canGeneratePresentation(user)
   const greeting = getGreeting()
 
   // Result state
@@ -187,6 +188,13 @@ export default function GeneratePresentationPage() {
     if (!user) {
       sessionStorage.setItem('uchion_pending_generate_presentation', JSON.stringify(values))
       navigate('/login')
+      return
+    }
+
+    // Check plan: presentations require teacher/expert
+    if (!canGeneratePresentation(user)) {
+      setErrorCode('PLAN_REQUIRED')
+      setErrorText('Генерация презентаций доступна на тарифах Учитель и Эксперт.')
       return
     }
 
@@ -390,21 +398,31 @@ export default function GeneratePresentationPage() {
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-slate-700 text-left mb-3">Количество слайдов</label>
                 <div className="grid grid-cols-3 gap-3">
-                  {SLIDE_COUNTS.map(sc => (
-                    <button
-                      key={sc.value}
-                      type="button"
-                      onClick={() => form.setValue('slideCount', sc.value)}
-                      className={`px-4 py-3 rounded-xl border-2 transition-all text-center ${
-                        watchSlideCount === sc.value
-                          ? 'border-[#8C52FF] bg-purple-50'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="text-sm font-semibold text-slate-900">{sc.label}</div>
-                      <div className="text-xs text-slate-500">{sc.description}</div>
-                    </button>
-                  ))}
+                  {SLIDE_COUNTS.map(sc => {
+                    const allowed = isSlideCountAllowed(user, sc.value)
+                    const isSelected = watchSlideCount === sc.value
+                    return (
+                      <button
+                        key={sc.value}
+                        type="button"
+                        disabled={!allowed}
+                        onClick={() => allowed && form.setValue('slideCount', sc.value)}
+                        className={`px-4 py-3 rounded-xl border-2 transition-all text-center ${
+                          !allowed
+                            ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60'
+                            : isSelected
+                              ? 'border-[#8C52FF] bg-purple-50'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className={`text-sm font-semibold ${allowed ? 'text-slate-900' : 'text-slate-400'}`}>{sc.label}</div>
+                        <div className={`text-xs ${allowed ? 'text-slate-500' : 'text-slate-400'}`}>{sc.description}</div>
+                        {!allowed && (
+                          <div className="text-xs text-purple-400 mt-0.5">Тариф Эксперт</div>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -412,7 +430,7 @@ export default function GeneratePresentationPage() {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  disabled={mutation.isPending || (!!user && generationsLeft < 1)}
+                  disabled={mutation.isPending || (!!user && (!presentationAllowed || generationsLeft < 1))}
                   className="group relative inline-flex h-12 px-8 items-center justify-center overflow-hidden rounded-xl bg-[#A855F7]/80 hover:bg-[#A855F7]/90 text-base font-semibold text-white shadow-md shadow-purple-400/20 transition-all hover:shadow-purple-400/30 disabled:opacity-60 disabled:hover:bg-[#A855F7]/80"
                 >
                   {mutation.isPending ? (
@@ -438,14 +456,55 @@ export default function GeneratePresentationPage() {
               </div>
             </div>
 
+            {/* Plan restriction banner -- shown even without a form error attempt */}
+            {user && !presentationAllowed && !errorText && (
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-5 text-sm">
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-base text-purple-900 mb-1">Презентации доступны на тарифах Учитель и Эксперт</p>
+                    <p className="text-purple-600">Перейдите на подходящий тариф, чтобы генерировать презентации</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/dashboard')}
+                    className="mt-1 px-5 py-2 rounded-lg bg-[#8C52FF] text-white text-sm font-medium hover:bg-[#7B3FEE] transition-colors"
+                  >
+                    Выбрать тариф
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Error message */}
             {errorText && (
               <div className={`rounded-xl border p-5 text-sm ${
-                errorCode === 'LIMIT_EXCEEDED' || errorCode === 'DAILY_LIMIT_EXCEEDED'
-                  ? 'border-amber-200 bg-amber-50 text-amber-800'
-                  : 'border-red-200 bg-red-50 text-red-700'
+                errorCode === 'PLAN_REQUIRED'
+                  ? 'border-purple-200 bg-purple-50 text-purple-800'
+                  : errorCode === 'LIMIT_EXCEEDED' || errorCode === 'DAILY_LIMIT_EXCEEDED'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
               }`}>
-                {(errorCode === 'LIMIT_EXCEEDED' || errorCode === 'DAILY_LIMIT_EXCEEDED') ? (
+                {errorCode === 'PLAN_REQUIRED' ? (
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-base mb-1">Презентации доступны на тарифах Учитель и Эксперт</p>
+                      <p className="text-purple-600">Перейдите на подходящий тариф, чтобы генерировать презентации</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/dashboard')}
+                      className="mt-1 px-5 py-2 rounded-lg bg-[#8C52FF] text-white text-sm font-medium hover:bg-[#7B3FEE] transition-colors"
+                    >
+                      Выбрать тариф
+                    </button>
+                  </div>
+                ) : (errorCode === 'LIMIT_EXCEEDED' || errorCode === 'DAILY_LIMIT_EXCEEDED') ? (
                   <div className="flex flex-col items-center gap-3 text-center">
                     <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />

@@ -131,15 +131,25 @@ function renderMatchingHtml(data: MatchingData): string {
   `
 }
 
+// Watermark CSS + HTML for free-plan PDFs
+const WATERMARK_CSS = `
+.wm { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; z-index: 9999; }
+.wm-text { font-size: 80pt; font-weight: 900; color: rgba(0,0,0,0.07);
+  transform: rotate(-35deg); font-family: 'Inter', sans-serif; }
+`
+const WATERMARK_HTML = '<div class="wm"><span class="wm-text">УчиОН</span></div>'
+
 // Dispatch to the correct template
-function generateWorksheetHtml(worksheet: Worksheet, templateId: PdfTemplateId = 'standard'): string {
-  if (templateId === 'rainbow') return generateRainbowHtml(worksheet)
-  if (templateId === 'academic') return generateAcademicHtml(worksheet)
-  return generateStandardHtml(worksheet)
+function generateWorksheetHtml(worksheet: Worksheet, templateId: PdfTemplateId = 'standard', addWatermark = false): string {
+  if (templateId === 'rainbow') return generateRainbowHtml(worksheet, addWatermark)
+  if (templateId === 'academic') return generateAcademicHtml(worksheet, addWatermark)
+  return generateStandardHtml(worksheet, addWatermark)
 }
 
 // Standard (default) template
-function generateStandardHtml(worksheet: Worksheet): string {
+function generateStandardHtml(worksheet: Worksheet, addWatermark = false): string {
   const fonts = loadFontAsBase64()
 
   const fontFaceCSS = fonts ? `
@@ -545,6 +555,8 @@ function generateStandardHtml(worksheet: Worksheet): string {
       margin-right: 6px;
     }
 
+    ${addWatermark ? WATERMARK_CSS : ''}
+
     @media print {
       body {
         -webkit-print-color-adjust: exact;
@@ -554,6 +566,7 @@ function generateStandardHtml(worksheet: Worksheet): string {
   </style>
 </head>
 <body>
+  ${addWatermark ? WATERMARK_HTML : ''}
   ${hasAssignments ? `
   <!-- Assignments section -->
   <div class="content-section">
@@ -669,7 +682,7 @@ function generateStandardHtml(worksheet: Worksheet): string {
 }
 
 // Rainbow (Радуга) template — colorful, child-friendly style
-function generateRainbowHtml(worksheet: Worksheet): string {
+function generateRainbowHtml(worksheet: Worksheet, addWatermark = false): string {
   const fonts = loadFontAsBase64()
 
   const fontFaceCSS = fonts ? `
@@ -1082,12 +1095,15 @@ function generateRainbowHtml(worksheet: Worksheet): string {
       margin-right: 4px;
     }
 
+    ${addWatermark ? WATERMARK_CSS : ''}
+
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
+  ${addWatermark ? WATERMARK_HTML : ''}
   ${hasAssignments ? `
   <div class="page">
     ${headerHtml}
@@ -1137,7 +1153,7 @@ function generateRainbowHtml(worksheet: Worksheet): string {
 }
 
 // Academic (Академичный) template — elegant warm-toned style for middle/high school
-function generateAcademicHtml(worksheet: Worksheet): string {
+function generateAcademicHtml(worksheet: Worksheet, addWatermark = false): string {
   const fonts = loadFontAsBase64()
 
   const fontFaceCSS = fonts ? `
@@ -1502,12 +1518,15 @@ function generateAcademicHtml(worksheet: Worksheet): string {
       break-inside: avoid;
     }
 
+    ${addWatermark ? WATERMARK_CSS : ''}
+
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
+  ${addWatermark ? WATERMARK_HTML : ''}
   ${hasAssignments ? `
   <div class="ac-page">
     ${headerHtml}
@@ -1787,7 +1806,7 @@ function processText(text: string): string {
   return escapeHtml(latexToUnicode(text))
 }
 
-export async function buildPdf(worksheet: Worksheet, meta: GeneratePayload, templateId: PdfTemplateId = 'standard'): Promise<string> {
+export async function buildPdf(worksheet: Worksheet, meta: GeneratePayload, templateId: PdfTemplateId = 'standard', addWatermark = false): Promise<string> {
   console.log('[PDF] Starting buildPdf...')
   console.log('[PDF] isServerless:', isServerless())
 
@@ -1837,8 +1856,8 @@ export async function buildPdf(worksheet: Worksheet, meta: GeneratePayload, temp
     const page = await browser.newPage()
     console.log('[PDF] New page created')
 
-    const html = generateWorksheetHtml(worksheet, templateId)
-    console.log('[PDF] HTML generated, template:', templateId, 'length:', html.length)
+    const html = generateWorksheetHtml(worksheet, templateId, addWatermark)
+    console.log('[PDF] HTML generated, template:', templateId, 'watermark:', addWatermark, 'length:', html.length)
 
     await page.setContent(html, {
       waitUntil: 'networkidle0',

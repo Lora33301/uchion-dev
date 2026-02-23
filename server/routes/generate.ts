@@ -1,18 +1,19 @@
 import { Router } from 'express'
-import type { Response } from 'express'
+import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { db } from '../../db/index.js'
 import { users, worksheets, subscriptions, generations } from '../../db/schema.js'
 import { eq, sql, and, gt, lt } from 'drizzle-orm'
 import { getAIProvider } from '../../api/_lib/ai-provider.js'
 import { buildPdf, type PdfTemplateId } from '../../api/_lib/pdf.js'
-import { withAuth } from '../middleware/auth.js'
-import { checkGenerateRateLimit, checkDailyGenerationLimit, checkRateLimit } from '../middleware/rate-limit.js'
+import { withAuth, optionalAuth } from '../middleware/auth.js'
+import { checkGenerateRateLimit, checkDailyGenerationLimit, checkRateLimit, checkDailyRegenLimit } from '../middleware/rate-limit.js'
 import { trackGeneration, sendInstantFailureAlert } from '../../api/_lib/alerts/generation-alerts.js'
 import type { AuthenticatedRequest } from '../types.js'
 import { withAIContext } from '../../api/_lib/ai-usage.js'
 import type { GeneratePayload, Worksheet } from '../../shared/types.js'
 import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchema } from '../../shared/worksheet.js'
+import { getUserPlanConfig } from '../../shared/plans.js'
 
 const router = Router()
 
@@ -59,14 +60,15 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     })
   }
 
-  // Check daily limit for paid users (20 per day, resets at midnight MSK)
+  // Load subscription + plan config
   const [subscription] = await db
     .select({ plan: subscriptions.plan, status: subscriptions.status })
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .limit(1)
 
-  const isPaidUser = subscription && subscription.plan !== 'free' && (subscription.status === 'active' || subscription.status === 'past_due')
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const isPaidUser = planConfig.paidModel
 
   if (isPaidUser) {
     const dailyCheck = await checkDailyGenerationLimit(userId, 20)
@@ -163,9 +165,12 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
     sendEvent({ type: 'progress', percent: 97 })
 
+    // Build PDF with watermark for free users
+    const addWatermark = planConfig.pdfWatermark && req.user.role !== 'admin'
+
     let pdfBase64: string | null = null
     try {
-      pdfBase64 = await buildPdf(worksheet, input as GeneratePayload)
+      pdfBase64 = await buildPdf(worksheet, input as GeneratePayload, 'standard', addWatermark)
     } catch (e) {
       console.error('[API] PDF generation error:', e)
       // Log failed generation to DB
@@ -223,8 +228,8 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
       dbId = inserted?.id || null
 
-      // Enforce 20-worksheet limit per user: soft-delete oldest beyond the cap
-      const MAX_WORKSHEETS = 20
+      // Enforce worksheet limit per user's plan: soft-delete oldest beyond the cap
+      const maxWorksheets = planConfig.maxWorksheets
       await db.execute(sql`
         UPDATE worksheets
         SET deleted_at = NOW(), updated_at = NOW()
@@ -234,7 +239,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
             SELECT id FROM worksheets
             WHERE user_id = ${userId} AND deleted_at IS NULL
             ORDER BY created_at DESC
-            LIMIT ${MAX_WORKSHEETS}
+            LIMIT ${maxWorksheets}
           )
       `)
     } catch (dbError) {
@@ -354,6 +359,38 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
   const input = parse.data
   const userId = req.user.id
 
+  // Load subscription + plan config BEFORE checking limits
+  const [sub] = await db
+    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1)
+
+  const planConfig = getUserPlanConfig(sub?.plan, sub?.status)
+
+  // Check plan allows regen at all
+  if (planConfig.dailyRegenLimit === 0 && req.user.role !== 'admin') {
+    return res.status(403).json({
+      status: 'error',
+      code: 'PLAN_LIMIT',
+      message: 'Перегенерация заданий доступна начиная с тарифа Начинающий.',
+    })
+  }
+
+  // Check daily regen limit
+  if (req.user.role !== 'admin') {
+    const regenCheck = await checkDailyRegenLimit(userId, planConfig.dailyRegenLimit)
+    if (!regenCheck.allowed) {
+      return res.status(429).json({
+        status: 'error',
+        code: 'DAILY_REGEN_LIMIT',
+        message: `Суточный лимит перегенераций исчерпан (${regenCheck.used}/${regenCheck.limit}). Лимит обновится после полуночи по МСК.`,
+        used: regenCheck.used,
+        limit: regenCheck.limit,
+      })
+    }
+  }
+
   // Rate limit: 10 per minute
   const rateLimitResult = await checkRateLimit(req, {
     maxRequests: 10,
@@ -390,14 +427,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
   }
 
   try {
-    // Determine if user has paid subscription (use better model)
-    const [sub] = await db
-      .select({ plan: subscriptions.plan, status: subscriptions.status })
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
-      .limit(1)
-
-    const isPaid = (sub && sub.plan !== 'free' && (sub.status === 'active' || sub.status === 'past_due')) || req.user.role === 'admin'
+    const isPaid = planConfig.paidModel || req.user.role === 'admin'
 
     const ai = getAIProvider()
     const aiSessionId = crypto.randomUUID()
@@ -441,7 +471,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
 
 // ==================== POST /api/generate/rebuild-pdf ====================
 // Regenerate PDF from edited worksheet content (no AI cost, just Puppeteer)
-router.post('/rebuild-pdf', async (req, res) => {
+router.post('/rebuild-pdf', optionalAuth(async (req: Request, res: Response) => {
   try {
     // Rate limit by IP: 10 requests per minute
     const rl = await checkRateLimit(req, { maxRequests: 10, windowSeconds: 60 })
@@ -458,14 +488,28 @@ router.post('/rebuild-pdf', async (req, res) => {
       return res.status(400).json({ status: 'error', code: 'INVALID_INPUT', message: 'Некорректные данные листа.' })
     }
 
+    // Determine watermark based on user's plan
+    let addWatermark = true // default: watermark for unauthenticated
+    const authReq = req as AuthenticatedRequest
+    if (authReq.user) {
+      const [sub] = await db
+        .select({ plan: subscriptions.plan, status: subscriptions.status })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, authReq.user.id))
+        .limit(1)
+
+      const planConfig = getUserPlanConfig(sub?.plan, sub?.status)
+      addWatermark = planConfig.pdfWatermark && authReq.user.role !== 'admin'
+    }
+
     const worksheet = parse.data as Worksheet
-    const pdfBase64 = await buildPdf(worksheet, {} as GeneratePayload, templateId)
+    const pdfBase64 = await buildPdf(worksheet, {} as GeneratePayload, templateId, addWatermark)
 
     return res.json({ status: 'ok', pdfBase64 })
   } catch (err) {
     console.error('[rebuild-pdf] Error:', err)
     return res.status(500).json({ status: 'error', code: 'PDF_ERROR', message: 'Не удалось сгенерировать PDF.' })
   }
-})
+}))
 
 export default router

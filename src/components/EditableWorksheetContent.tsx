@@ -22,6 +22,8 @@ interface EditableWorksheetContentProps {
   // Regeneration
   onRegenerateTask?: (index: number, taskType: string, isTest: boolean) => void
   regeneratingIndex?: RegeneratingIndex | null
+  regenDisabled?: boolean
+  regenRemainingLabel?: string | null
 }
 
 const shouldShowAnswerField = (text: string) => {
@@ -206,11 +208,13 @@ const RegenerateButton = ({
   isTest,
   isRegenerating,
   onRegenerate,
+  regenDisabled,
 }: {
   index: number
   isTest: boolean
   isRegenerating: boolean
   onRegenerate?: (index: number, taskType: string, isTest: boolean) => void
+  regenDisabled?: boolean
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -229,14 +233,15 @@ const RegenerateButton = ({
   if (!onRegenerate) return null
 
   const taskTypes = isTest ? TEST_TASK_TYPES : OPEN_TASK_TYPES
+  const isDisabled = isRegenerating || !!regenDisabled
 
   return (
     <div className="relative print:hidden" ref={dropdownRef}>
       <button
-        onClick={() => !isRegenerating && setIsOpen(!isOpen)}
-        disabled={isRegenerating}
+        onClick={() => !isDisabled && setIsOpen(!isOpen)}
+        disabled={isDisabled}
         className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Перегенерировать задание"
+        title={regenDisabled ? 'Суточный лимит перегенераций исчерпан' : 'Перегенерировать задание'}
       >
         {isRegenerating ? (
           <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -293,6 +298,8 @@ export default function EditableWorksheetContent({
   onUpdateMatchingRightItem,
   onRegenerateTask,
   regeneratingIndex,
+  regenDisabled,
+  regenRemainingLabel,
 }: EditableWorksheetContentProps) {
   return (
     <div id="worksheet-pdf-root" className="worksheet-pdf-root">
@@ -326,6 +333,9 @@ export default function EditableWorksheetContent({
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">E</span>
               Задания
               {isEditMode && <span className="text-sm font-normal text-indigo-500 ml-2">(режим редактирования)</span>}
+              {regenRemainingLabel && (
+                <span className="ml-auto text-xs font-normal text-gray-400">{regenRemainingLabel}</span>
+              )}
             </h2>
             <h2 className="hidden print:flex mb-4 text-lg font-bold text-gray-900 border-b pb-2 items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded bg-indigo-600 text-white text-xs">E</span>
@@ -346,6 +356,7 @@ export default function EditableWorksheetContent({
                         isTest={false}
                         isRegenerating={isThisRegenerating}
                         onRegenerate={onRegenerateTask}
+                        regenDisabled={regenDisabled}
                       />
                     </div>
                     {/* Loading overlay */}
@@ -423,6 +434,9 @@ export default function EditableWorksheetContent({
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">T</span>
                 Мини-тест
                 {isEditMode && <span className="text-sm font-normal text-indigo-500 ml-2">(режим редактирования)</span>}
+                {regenRemainingLabel && (
+                  <span className="ml-auto text-xs font-normal text-gray-400">{regenRemainingLabel}</span>
+                )}
               </h2>
               <h2 className="hidden print:flex mb-4 text-lg font-bold text-gray-900 border-b pb-2 items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded bg-indigo-600 text-white text-xs">T</span>
@@ -442,6 +456,7 @@ export default function EditableWorksheetContent({
                         isTest={true}
                         isRegenerating={isThisRegenerating}
                         onRegenerate={onRegenerateTask}
+                        regenDisabled={regenDisabled}
                       />
                     </div>
                     {/* Loading overlay */}

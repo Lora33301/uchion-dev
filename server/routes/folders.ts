@@ -8,18 +8,9 @@ import { withAuth, type AuthUser } from '../middleware/auth.js'
 import { ApiError } from '../middleware/error-handler.js'
 import { requireRateLimit } from '../middleware/rate-limit.js'
 import type { AuthenticatedRequest } from '../types.js'
+import { getUserPlanConfig } from '../../shared/plans.js'
 
 const router = Router()
-
-const FOLDER_LIMITS: Record<string, number> = {
-  free: 2,
-  starter: 10,
-  teacher: 10,
-  expert: 10,
-  // Legacy plan names (backward compatibility)
-  basic: 10,
-  premium: 10,
-}
 
 const CreateFolderSchema = z.object({
   name: z.string().min(1).max(100),
@@ -122,13 +113,13 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   const { name, color, parentId } = parse.data
 
   const [subscription] = await db
-    .select({ plan: subscriptions.plan })
+    .select({ plan: subscriptions.plan, status: subscriptions.status })
     .from(subscriptions)
     .where(eq(subscriptions.userId, user.id))
     .limit(1)
 
-  const userPlan = subscription?.plan || 'free'
-  const folderLimit = FOLDER_LIMITS[userPlan] || FOLDER_LIMITS.free
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+  const folderLimit = planConfig.folders
 
   const [{ value: folderCount }] = await db
     .select({ value: count() })
@@ -140,7 +131,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
   if (folderCount >= folderLimit) {
     throw new ApiError(403, 'Достигнут лимит папок', 'FOLDER_LIMIT_EXCEEDED', {
-      message: userPlan === 'free'
+      message: planConfig.id === 'free'
         ? `Бесплатный тариф позволяет создать до ${folderLimit} папок.`
         : `Достигнут максимальный лимит папок (${folderLimit}).`,
       limit: folderLimit,

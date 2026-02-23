@@ -6,6 +6,8 @@ import { updateWorksheet as updateWorksheetApi } from '../lib/dashboard-api'
 import type { Worksheet } from '../../shared/types'
 import { buildWorksheetPdf } from '../lib/pdf-client'
 import { useWorksheetEditor } from '../hooks/useWorksheetEditor'
+import { useAuth } from '../lib/auth'
+import { canRegenerateTask, getRegenRemaining } from '../lib/limits'
 import EditableWorksheetContent from '../components/EditableWorksheetContent'
 import EditModeToolbar from '../components/EditModeToolbar'
 import UnsavedChangesDialog, { useBeforeUnload } from '../components/UnsavedChangesDialog'
@@ -49,6 +51,7 @@ export default function WorksheetPage() {
   const navigate = useNavigate()
   const worksheetRef = useRef<HTMLDivElement | null>(null)
 
+  const { user } = useAuth()
   const sessionStore = useSessionStore()
   const [initialWorksheet, setInitialWorksheet] = useState<Worksheet | null>(
     sessionId ? sessionStore.getSession(sessionId)?.worksheet ?? null : null
@@ -455,8 +458,14 @@ export default function WorksheetPage() {
             onUpdateMatchingInstruction={editor.updateMatchingInstruction}
             onUpdateMatchingLeftItem={editor.updateMatchingLeftItem}
             onUpdateMatchingRightItem={editor.updateMatchingRightItem}
-            onRegenerateTask={handleRegenerateTask}
+            onRegenerateTask={canRegenerateTask(user) ? handleRegenerateTask : undefined}
             regeneratingIndex={regeneratingIndex}
+            regenDisabled={canRegenerateTask(user) && getRegenRemaining(user) === 0}
+            regenRemainingLabel={(() => {
+              const remaining = getRegenRemaining(user)
+              if (remaining === null) return null
+              return `Перегенерация: ${remaining} из ${user?.limits?.dailyRegenLimit ?? 0}`
+            })()}
           />
         </div>
       </main>

@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express'
 import crypto from 'crypto'
-import { eq, and, isNull, desc, sql, gt } from 'drizzle-orm'
+import { eq, and, isNull, desc, sql, gt, count } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db/index.js'
-import { users, subscriptions, emailCodes } from '../../db/schema.js'
+import { users, subscriptions, emailCodes, worksheets, presentations, folders } from '../../db/schema.js'
 import {
   getTokenFromCookie,
   setAuthCookies,
@@ -40,6 +40,7 @@ import {
   requireOAuthRedirectRateLimit,
   requireEmailSendCodeRateLimit,
   requireEmailVerifyCodeRateLimit,
+  getDailyRegenCount,
 } from '../middleware/rate-limit.js'
 import { ApiError } from '../middleware/error-handler.js'
 import {
@@ -51,6 +52,7 @@ import {
   logCsrfDetected,
 } from '../middleware/audit-log.js'
 import { sendOTPEmail } from '../../api/_lib/email.js'
+import { getUserPlanConfig } from '../../shared/plans.js'
 
 const router = Router()
 
@@ -100,6 +102,25 @@ router.get('/me', async (req: Request, res: Response) => {
     .where(eq(subscriptions.userId, payload.sub))
     .limit(1)
 
+  // Get plan config
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+
+  // Get usage counts in parallel
+  const [
+    [{ value: worksheetCount }],
+    [{ value: presentationCount }],
+    [{ value: folderCount }],
+    dailyRegenUsed,
+  ] = await Promise.all([
+    db.select({ value: count() }).from(worksheets)
+      .where(and(eq(worksheets.userId, payload.sub), isNull(worksheets.deletedAt))),
+    db.select({ value: count() }).from(presentations)
+      .where(eq(presentations.userId, payload.sub)),
+    db.select({ value: count() }).from(folders)
+      .where(and(eq(folders.userId, payload.sub), isNull(folders.deletedAt))),
+    getDailyRegenCount(payload.sub),
+  ])
+
   return res.status(200).json({
     user: {
       ...user,
@@ -119,7 +140,22 @@ router.get('/me', async (req: Request, res: Response) => {
             generationsTotal: 5,
             currentPeriodEnd: null,
             cancelledAt: null,
-          }
+          },
+      limits: {
+        folders: planConfig.folders,
+        maxWorksheets: planConfig.maxWorksheets,
+        maxPresentations: planConfig.maxPresentations,
+        canGeneratePresentation: planConfig.canGeneratePresentation,
+        allowedSlideCounts: planConfig.allowedSlideCounts,
+        dailyRegenLimit: planConfig.dailyRegenLimit,
+        pdfWatermark: planConfig.pdfWatermark,
+      },
+      usage: {
+        worksheets: worksheetCount,
+        presentations: presentationCount,
+        folders: folderCount,
+        dailyRegenUsed,
+      },
     }
   })
 })

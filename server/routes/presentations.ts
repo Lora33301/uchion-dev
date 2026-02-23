@@ -12,6 +12,7 @@ import { withAIContext } from '../../api/_lib/ai-usage.js'
 import { withAuth } from '../middleware/auth.js'
 import { checkGenerateRateLimit } from '../middleware/rate-limit.js'
 import type { AuthenticatedRequest } from '../types.js'
+import { getUserPlanConfig } from '../../shared/plans.js'
 
 const router = Router()
 
@@ -55,7 +56,34 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
 
   const userId = req.user.id
 
-  // 3. Atomically decrement generationsLeft (costs 1 generation)
+  // 3. Load subscription + check plan allows presentations
+  const [subscription] = await db
+    .select({ plan: subscriptions.plan, status: subscriptions.status })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1)
+
+  const planConfig = getUserPlanConfig(subscription?.plan, subscription?.status)
+
+  if (!planConfig.canGeneratePresentation && req.user.role !== 'admin') {
+    return res.status(403).json({
+      status: 'error',
+      code: 'PLAN_LIMIT',
+      message: 'Презентации доступны начиная с тарифа Методист.',
+    })
+  }
+
+  // Validate slide count against plan
+  const slideCount = input.slideCount || 12
+  if (planConfig.allowedSlideCounts.length > 0 && !planConfig.allowedSlideCounts.includes(slideCount) && req.user.role !== 'admin') {
+    return res.status(403).json({
+      status: 'error',
+      code: 'PLAN_LIMIT',
+      message: `Объём ${slideCount} слайдов недоступен на вашем тарифе. Доступно: ${planConfig.allowedSlideCounts.join(', ')} слайдов.`,
+    })
+  }
+
+  // 3b. Atomically decrement generationsLeft (costs 1 generation)
   const [decremented] = await db
     .update(users)
     .set({
@@ -72,7 +100,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     return res.status(403).json({
       status: 'error',
       code: 'LIMIT_EXCEEDED',
-      message: '\u041b\u0438\u043c\u0438\u0442 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0439 \u0438\u0441\u0447\u0435\u0440\u043f\u0430\u043d. \u041f\u0440\u0438\u043e\u0431\u0440\u0435\u0442\u0438\u0442\u0435 \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438.',
+      message: 'Лимит генераций исчерпан. Приобретите дополнительные генерации.',
     })
   }
 
@@ -113,13 +141,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     const fallbackProvider = getAIProvider()
 
     // Determine if user has paid subscription (use better model)
-    const [subscription] = await db
-      .select({ plan: subscriptions.plan, status: subscriptions.status })
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
-      .limit(1)
-
-    const isPaid = (subscription && subscription.plan !== 'free' && (subscription.status === 'active' || subscription.status === 'past_due')) || req.user.role === 'admin'
+    const isPaid = planConfig.paidModel || req.user.role === 'admin'
 
     // 6. Call generatePresentation - prefer Claude for presentations
     const provider = claudeProvider || fallbackProvider
@@ -193,16 +215,19 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
 
       dbId = inserted?.id || null
 
-      // Enforce 15-presentation limit per user: auto-delete oldest
-      const userPresentations = await db
-        .select({ id: presentations.id })
-        .from(presentations)
-        .where(eq(presentations.userId, userId))
-        .orderBy(desc(presentations.createdAt))
+      // Enforce presentation limit per user's plan: auto-delete oldest
+      const maxPresentations = planConfig.maxPresentations
+      if (maxPresentations > 0) {
+        const userPresentations = await db
+          .select({ id: presentations.id })
+          .from(presentations)
+          .where(eq(presentations.userId, userId))
+          .orderBy(desc(presentations.createdAt))
 
-      if (userPresentations.length > 15) {
-        const toDelete = userPresentations.slice(15).map(p => p.id)
-        await db.delete(presentations).where(inArray(presentations.id, toDelete))
+        if (userPresentations.length > maxPresentations) {
+          const toDelete = userPresentations.slice(maxPresentations).map(p => p.id)
+          await db.delete(presentations).where(inArray(presentations.id, toDelete))
+        }
       }
     } catch (dbError) {
       console.error('[API] Failed to save presentation to database:', dbError)

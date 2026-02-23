@@ -9,7 +9,7 @@ import { generatePresentation } from '../lib/presentation-api'
 import { useSessionStore } from '../store/session'
 import CustomSelect from '../components/ui/CustomSelect'
 import { useAuth } from '../lib/auth'
-import { getGenerationsLeft, canGenerate } from '../lib/limits'
+import { getGenerationsLeft, canGenerate, canGeneratePresentation, isSlideCountAllowed } from '../lib/limits'
 import Header from '../components/Header'
 import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import { fetchFolders } from '../lib/dashboard-api'
@@ -427,7 +427,23 @@ export default function GeneratePage() {
       return
     }
 
-    // Check limits
+    // Check plan allows presentations
+    if (!canGeneratePresentation(user)) {
+      setErrorText('Презентации доступны начиная с тарифа Методист.')
+      setErrorCode('PLAN_LIMIT')
+      setShowBuyModal(true)
+      return
+    }
+
+    // Check slide count allowed
+    if (!isSlideCountAllowed(user, values.slideCount || 12)) {
+      setErrorText(`Объём ${values.slideCount || 12} слайдов недоступен на вашем тарифе.`)
+      setErrorCode('PLAN_LIMIT')
+      setShowBuyModal(true)
+      return
+    }
+
+    // Check generation limits
     if (!canGenerate(user)) {
       setShowBuyModal(true)
       return

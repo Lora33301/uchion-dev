@@ -11,6 +11,23 @@ export interface UserSubscription {
   cancelledAt: string | null
 }
 
+export interface PlanLimits {
+  folders: number
+  maxWorksheets: number
+  maxPresentations: number
+  canGeneratePresentation: boolean
+  allowedSlideCounts: number[]
+  dailyRegenLimit: number // 0=forbidden, -1=unlimited
+  pdfWatermark: boolean
+}
+
+export interface PlanUsage {
+  worksheets: number
+  presentations: number
+  folders: number
+  dailyRegenUsed: number
+}
+
 export interface User {
   id: string
   email: string
@@ -18,6 +35,8 @@ export interface User {
   role: 'user' | 'admin'
   generationsLeft: number
   subscription?: UserSubscription
+  limits?: PlanLimits
+  usage?: PlanUsage
 }
 
 interface AuthContextType {

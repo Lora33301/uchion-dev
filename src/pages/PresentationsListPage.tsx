@@ -242,14 +242,15 @@ function CreateFolderModal({
   onSave: (name: string, color: string) => void
   isLoading: boolean
   currentCount: number
-  plan: 'free' | 'basic' | 'premium'
+  plan: string
+  folderLimit?: number
 }) {
   const [name, setName] = useState('')
   const [color, setColor] = useState('#6366f1')
   const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#22c55e', '#14b8a6', '#3b82f6']
 
-  const folderLimit = plan === 'free' ? 2 : 10
-  const isLimitReached = currentCount >= folderLimit
+  const effectiveLimit = folderLimit ?? (plan === 'free' ? 2 : 10)
+  const isLimitReached = currentCount >= effectiveLimit
 
   useEffect(() => {
     if (isOpen) {
@@ -270,10 +271,10 @@ function CreateFolderModal({
           </button>
         </div>
 
-        <div className={`mb-4 p-3 rounded-xl ${isLimitReached ? 'bg-red-50' : currentCount >= folderLimit - 1 ? 'bg-yellow-50' : 'bg-slate-50'}`}>
+        <div className={`mb-4 p-3 rounded-xl ${isLimitReached ? 'bg-red-50' : currentCount >= effectiveLimit - 1 ? 'bg-yellow-50' : 'bg-slate-50'}`}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">
-              Использовано папок: {currentCount} / {folderLimit}
+              Использовано папок: {currentCount} / {effectiveLimit}
             </span>
             {plan === 'free' && (
               <span className="text-xs text-slate-500">Бесплатный тариф</span>
@@ -281,7 +282,7 @@ function CreateFolderModal({
           </div>
           {isLimitReached && (
             <p className="text-xs text-red-600 mt-1">
-              Достигнут лимит папок. {plan === 'free' ? 'Перейдите на платный тариф для создания до 10 папок.' : 'Удалите ненужные папки.'}
+              Достигнут лимит папок. {plan === 'free' ? 'Перейдите на платный тариф для увеличения лимита.' : 'Удалите ненужные папки.'}
             </p>
           )}
         </div>
@@ -732,6 +733,7 @@ export default function PresentationsListPage() {
         isLoading={createFolderMutation.isPending}
         currentCount={folders.length}
         plan={user?.subscription?.plan || 'free'}
+        folderLimit={user?.limits?.folders}
       />
     </div>
   )

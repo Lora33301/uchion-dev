@@ -56,6 +56,44 @@ export function withAuth(
 }
 
 /**
+ * Middleware that optionally authenticates.
+ * If a valid token is present, attaches user to request.
+ * If not, continues without user (req.user will be undefined).
+ */
+export function optionalAuth(
+  handler: (req: Request, res: Response) => Promise<void | Response> | void | Response
+) {
+  return async (req: Request, res: Response) => {
+    const token = getTokenFromCookie(req, ACCESS_TOKEN_COOKIE)
+
+    if (token) {
+      const payload = verifyAccessToken(token)
+      if (payload) {
+        const [user] = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            role: users.role,
+          })
+          .from(users)
+          .where(and(
+            eq(users.id, payload.sub),
+            isNull(users.deletedAt)
+          ))
+          .limit(1)
+
+        if (user) {
+          ;(req as AuthenticatedRequest).user = user as AuthUser
+        }
+      }
+    }
+
+    return await handler(req, res)
+  }
+}
+
+/**
  * Middleware that requires admin role.
  * Throws ApiError.forbidden if user is not admin.
  */

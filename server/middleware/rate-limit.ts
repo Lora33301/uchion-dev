@@ -333,3 +333,70 @@ export async function checkDailyGenerationLimit(
     return { allowed: false, used: 0, limit: dailyLimit }
   }
 }
+
+// ==================== DAILY REGEN LIMIT ====================
+
+/**
+ * Check and increment daily regeneration counter.
+ * dailyLimit: 0 = forbidden, -1 = unlimited, >0 = max per day.
+ */
+export async function checkDailyRegenLimit(
+  userId: string,
+  dailyLimit: number
+): Promise<{ allowed: boolean; used: number; limit: number }> {
+  // Forbidden
+  if (dailyLimit === 0) {
+    return { allowed: false, used: 0, limit: 0 }
+  }
+
+  // Unlimited
+  if (dailyLimit === -1) {
+    return { allowed: true, used: 0, limit: -1 }
+  }
+
+  const redis = getRedisClient()
+  const key = `daily:regen:${userId}`
+
+  if (!redis) {
+    // Fallback: allow (regen is non-critical vs denying paid users)
+    console.warn('[RateLimit] Redis unavailable for daily regen limit, allowing request')
+    return { allowed: true, used: 0, limit: dailyLimit }
+  }
+
+  try {
+    const current = await redis.get(key)
+    const used = current ? parseInt(current, 10) : 0
+
+    if (used >= dailyLimit) {
+      return { allowed: false, used, limit: dailyLimit }
+    }
+
+    const newCount = await redis.incr(key)
+
+    if (newCount === 1) {
+      const ttl = secondsUntilMidnightMSK()
+      await redis.expire(key, ttl)
+    }
+
+    return { allowed: true, used: newCount, limit: dailyLimit }
+  } catch (err) {
+    console.warn('[RateLimit] Daily regen limit error, allowing request:', err)
+    return { allowed: true, used: 0, limit: dailyLimit }
+  }
+}
+
+/**
+ * Read-only: get current daily regen count without incrementing.
+ * Used by GET /api/auth/me to return usage info.
+ */
+export async function getDailyRegenCount(userId: string): Promise<number> {
+  const redis = getRedisClient()
+  if (!redis) return 0
+
+  try {
+    const val = await redis.get(`daily:regen:${userId}`)
+    return val ? parseInt(val, 10) : 0
+  } catch {
+    return 0
+  }
+}
