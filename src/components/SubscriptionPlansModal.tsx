@@ -65,7 +65,6 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   free: [],
   starter: [
     { text: '25 генераций в месяц', available: true, highlight: true },
-    { text: 'Модель AI: GPT-4.1', available: true },
     { text: 'PDF без водяного знака', available: true },
     { text: 'До 5 перегенераций/день', available: true },
     { text: 'Редактирование листов', available: true },
@@ -74,7 +73,6 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   ],
   teacher: [
     { text: '60 генераций в месяц', available: true, highlight: true },
-    { text: 'Модель AI: GPT-4.1', available: true },
     { text: 'PDF без водяного знака', available: true },
     { text: 'До 10 перегенераций/день', available: true },
     { text: 'Редактирование листов', available: true },
@@ -84,7 +82,6 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   ],
   expert: [
     { text: '120 генераций в месяц', available: true, highlight: true },
-    { text: 'Модель AI: GPT-4.1', available: true },
     { text: 'PDF без водяного знака', available: true },
     { text: 'Безлимит перегенераций', available: true },
     { text: 'Редактирование листов', available: true },
