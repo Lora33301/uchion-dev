@@ -14,6 +14,7 @@ import PresentationsListPage from './pages/PresentationsListPage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import PaymentCancelPage from './pages/PaymentCancelPage'
 import LegalDocPage from './pages/LegalDocPage'
+import PricingPage from './pages/PricingPage'
 
 // Admin pages -- lazy-loaded into a separate chunk.
 // The AdminPage layout itself checks the user role before rendering,
@@ -62,6 +63,9 @@ export default function App() {
         <Route path="/worksheets/:id" element={<SavedWorksheetPage />} />
         <Route path="/presentations" element={<PresentationsListPage />} />
         <Route path="/presentations/:id" element={<SavedPresentationPage />} />
+
+        {/* Pricing */}
+        <Route path="/pricing" element={<PricingPage />} />
 
         {/* Legal docs */}
         <Route path="/legal/:slug" element={<LegalDocPage />} />

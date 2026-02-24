@@ -47,6 +47,11 @@ export default function Footer() {
                   Личный кабинет
                 </Link>
               </li>
+              <li>
+                <Link to="/pricing" className="text-sm text-slate-500 hover:text-[#8C52FF] transition-colors">
+                  Тарифы
+                </Link>
+              </li>
             </ul>
           </div>
 

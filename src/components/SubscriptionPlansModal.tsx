@@ -425,9 +425,10 @@ export interface SubscriptionPlansModalProps {
   isOpen: boolean
   onClose: () => void
   initialTab?: TabId
+  initialPlan?: SubscriptionPlanId
 }
 
-export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = 'subscription' }: SubscriptionPlansModalProps) {
+export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = 'subscription', initialPlan }: SubscriptionPlansModalProps) {
   const { user, refreshAuth } = useAuth()
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const [loadingPlan, setLoadingPlan] = useState<SubscriptionPlanId | null>(null)
@@ -463,12 +464,14 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
       setCancelConfirm(false)
       setCancelError(null)
       setCancelSuccess(null)
-      setAgreedTerms(false)
       setAgreedRecurring(false)
-      // Reset selected plan
-      setSelectedPlan(isPaid && currentPlan !== 'free' ? currentPlan : 'teacher')
+      // Reset selected plan — use initialPlan if provided, else current or teacher
+      const plan = initialPlan && initialPlan !== 'free'
+        ? initialPlan
+        : isPaid && currentPlan !== 'free' ? currentPlan : 'teacher'
+      setSelectedPlan(plan)
     }
-  }, [isOpen, initialTab, showTopupTab, isPaid, currentPlan])
+  }, [isOpen, initialTab, initialPlan, showTopupTab, isPaid, currentPlan])
 
   // Escape key + body scroll lock
   useEffect(() => {
