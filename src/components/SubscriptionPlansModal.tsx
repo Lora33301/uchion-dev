@@ -388,44 +388,13 @@ function TopupTabContent() {
 // ==================== AGREEMENT CHECKBOXES ====================
 
 interface AgreementCheckboxesProps {
-  agreedTerms: boolean
   agreedRecurring: boolean
-  onToggleTerms: () => void
   onToggleRecurring: () => void
 }
 
-function AgreementCheckboxes({ agreedTerms, agreedRecurring, onToggleTerms, onToggleRecurring }: AgreementCheckboxesProps) {
+function AgreementCheckboxes({ agreedRecurring, onToggleRecurring }: AgreementCheckboxesProps) {
   return (
     <div className="flex flex-col gap-2.5">
-      <label className="flex items-start gap-2.5 cursor-pointer group">
-        <div className="relative flex-shrink-0 mt-0.5">
-          <input
-            type="checkbox"
-            checked={agreedTerms}
-            onChange={onToggleTerms}
-            className="sr-only peer"
-          />
-          <div className={`w-4.5 h-4.5 w-[18px] h-[18px] rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
-            agreedTerms
-              ? 'bg-[#8C52FF] border-[#8C52FF]'
-              : 'border-slate-300 group-hover:border-[#8C52FF]/50'
-          }`}>
-            {agreedTerms && <CheckIcon className="w-2.5 h-2.5 text-white" />}
-          </div>
-        </div>
-        <span className="text-[12px] text-slate-500 leading-snug select-none">
-          Я принимаю{' '}
-          <a href="/agreement" className="text-[#8C52FF] hover:underline">
-            пользовательское соглашение
-          </a>
-          , с{' '}
-          <a href="/privacy" className="text-[#8C52FF] hover:underline">
-            политикой персональных данных
-          </a>
-          {' '}ознакомлен.
-        </span>
-      </label>
-
       <label className="flex items-start gap-2.5 cursor-pointer group">
         <div className="relative flex-shrink-0 mt-0.5">
           <input
@@ -467,7 +436,6 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [cancelSuccess, setCancelSuccess] = useState<string | null>(null)
-  const [agreedTerms, setAgreedTerms] = useState(false)
   const [agreedRecurring, setAgreedRecurring] = useState(false)
 
   const subscription = user?.subscription
@@ -482,7 +450,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   // Show topup tab only if user has active paid subscription and ran out of generations
   const showTopupTab = isPaid && subStatus === 'active' && (user?.generationsLeft ?? 0) <= 0
 
-  const bothAgreed = agreedTerms && agreedRecurring
+  const bothAgreed = agreedRecurring
   const isCurrentSelected = currentPlan === selectedPlan
 
   // Sync tab and reset state when modal opens
@@ -704,9 +672,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
 
                   {/* Agreement checkboxes */}
                   <AgreementCheckboxes
-                    agreedTerms={agreedTerms}
                     agreedRecurring={agreedRecurring}
-                    onToggleTerms={() => setAgreedTerms((v) => !v)}
                     onToggleRecurring={() => setAgreedRecurring((v) => !v)}
                   />
 
