@@ -586,8 +586,8 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
 
       {/* Modal */}
       <div className="relative bg-gradient-to-b from-white to-slate-50 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto border border-white/60">
-        {/* Decorative gradient blob */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] bg-gradient-to-b from-[#8C52FF]/8 to-transparent rounded-full blur-3xl pointer-events-none" />
+        {/* Decorative gradient blob — constrained to header area */}
+        <div className="absolute top-0 left-1/4 -translate-x-1/2 w-[300px] h-[120px] bg-gradient-to-b from-[#8C52FF]/6 to-transparent rounded-full blur-3xl pointer-events-none" />
 
         {/* Header */}
         <div className="sticky top-0 bg-white/80 backdrop-blur-xl z-10 px-6 pt-6 pb-0 rounded-t-3xl border-b border-slate-100/50">
