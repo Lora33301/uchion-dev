@@ -3,6 +3,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { paymentIntents, subscriptions, users } from '../../db/schema.js'
 import { isPaidPlan, getPlanConfig } from '../../shared/plans.js'
+import { invalidateUserCache } from '../lib/user-cache.js'
 import { sendAdminAlert } from '../../api/_lib/telegram/bot.js'
 import {
   PRODAMUS_SUBSCRIPTION_IDS,
@@ -238,6 +239,9 @@ async function handleFirstPayment(
       .where(eq(users.id, userId))
   })
 
+  // Invalidate user cache so auth middleware sees new plan immediately
+  await invalidateUserCache(userId)
+
   // Send admin alert (non-blocking)
   sendAdminAlert({
     message: `Новая подписка: ${planConfig.name} (${planConfig.price}₽/мес)\nПользователь: ${user.email}\nГенераций: ${planConfig.generationsPerPeriod}`,
@@ -281,6 +285,8 @@ async function handleAutoRenewal(
       })
       .where(eq(users.id, userId))
   })
+
+  await invalidateUserCache(userId)
 
   sendAdminAlert({
     message: `Автопродление: ${planConfig.name}\nПользователь: ${user.email}\nГенераций начислено: ${planConfig.generationsPerPeriod}`,
@@ -346,6 +352,8 @@ async function handleSubscriptionEnded(
       })
       .where(eq(users.id, userId))
   })
+
+  await invalidateUserCache(userId)
 
   sendAdminAlert({
     message: `Подписка завершена: ${planConfig.name}\nПользователь: ${user.email}\nСтатус: free, 0 генераций`,

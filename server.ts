@@ -240,6 +240,10 @@ import { runMigrations } from './db/index.js'
 async function start() {
   await runMigrations()
 
+  // Initialize BullMQ job queues (if USE_BULLMQ=true)
+  const { initQueues, closeQueues } = await import('./server/lib/job-queue.js')
+  await initQueues()
+
   // Periodically clean up expired refresh tokens (every 6 hours)
   const SIX_HOURS = 6 * 60 * 60 * 1000
   const tokenCleanupInterval = setInterval(async () => {
@@ -276,12 +280,15 @@ async function start() {
     }).catch(() => { /* ignore */ })
   })
 
-  // Graceful shutdown — close browser pool and cleanup intervals
+  // Graceful shutdown — close queues, browser pool, Redis, and cleanup intervals
   const shutdown = async () => {
     console.log('[Shutdown] Cleaning up...')
     clearInterval(tokenCleanupInterval)
+    await closeQueues()
     const { closeBrowserPool } = await import('./api/_lib/browser-pool.js')
     await closeBrowserPool()
+    const { closeRedis } = await import('./server/lib/redis.js')
+    await closeRedis()
     server.close(() => process.exit(0))
   }
   process.on('SIGTERM', shutdown)

@@ -5,9 +5,45 @@ import { users } from '../../db/schema.js'
 import { getTokenFromCookie, ACCESS_TOKEN_COOKIE } from './cookies.js'
 import { verifyAccessToken } from '../../api/_lib/auth/tokens.js'
 import { ApiError } from './error-handler.js'
+import { getCachedUser, setCachedUser } from '../lib/user-cache.js'
 import type { AuthUser, AuthenticatedRequest } from '../types.js'
 
 export type { AuthUser }
+
+/**
+ * Resolve user by ID: check Redis cache first, then DB.
+ * On cache miss, writes to cache for subsequent requests.
+ */
+async function resolveUser(userId: string): Promise<AuthUser | null> {
+  // Try cache first
+  const cached = await getCachedUser(userId)
+  if (cached) return cached
+
+  // Cache miss — query DB
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      hasPaidAccess: users.hasPaidAccess,
+    })
+    .from(users)
+    .where(and(
+      eq(users.id, userId),
+      isNull(users.deletedAt)
+    ))
+    .limit(1)
+
+  if (!user) return null
+
+  const authUser = user as AuthUser
+
+  // Write to cache (non-blocking)
+  setCachedUser(userId, authUser).catch(() => {})
+
+  return authUser
+}
 
 /**
  * Middleware that requires authentication.
@@ -29,28 +65,14 @@ export function withAuth(
       throw ApiError.unauthorized('Invalid or expired token')
     }
 
-    // Verify user still exists in database and is not deleted
-    const [user] = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        role: users.role,
-        hasPaidAccess: users.hasPaidAccess,
-      })
-      .from(users)
-      .where(and(
-        eq(users.id, payload.sub),
-        isNull(users.deletedAt)
-      ))
-      .limit(1)
+    const user = await resolveUser(payload.sub)
 
     if (!user) {
       throw ApiError.unauthorized('User not found or deactivated')
     }
 
     // Attach user to request
-    ;(req as AuthenticatedRequest).user = user as AuthUser
+    ;(req as AuthenticatedRequest).user = user
 
     return await handler(req as AuthenticatedRequest, res)
   }
@@ -70,23 +92,9 @@ export function optionalAuth(
     if (token) {
       const payload = verifyAccessToken(token)
       if (payload) {
-        const [user] = await db
-          .select({
-            id: users.id,
-            email: users.email,
-            name: users.name,
-            role: users.role,
-            hasPaidAccess: users.hasPaidAccess,
-          })
-          .from(users)
-          .where(and(
-            eq(users.id, payload.sub),
-            isNull(users.deletedAt)
-          ))
-          .limit(1)
-
+        const user = await resolveUser(payload.sub)
         if (user) {
-          ;(req as AuthenticatedRequest).user = user as AuthUser
+          ;(req as AuthenticatedRequest).user = user
         }
       }
     }
@@ -127,20 +135,7 @@ export async function requireAdmin(req: Request, res: Response, next: Function) 
     throw ApiError.unauthorized('Invalid or expired token')
   }
 
-  const [user] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      hasPaidAccess: users.hasPaidAccess,
-    })
-    .from(users)
-    .where(and(
-      eq(users.id, payload.sub),
-      isNull(users.deletedAt)
-    ))
-    .limit(1)
+  const user = await resolveUser(payload.sub)
 
   if (!user) {
     throw ApiError.unauthorized('User not found or deactivated')
@@ -150,6 +145,6 @@ export async function requireAdmin(req: Request, res: Response, next: Function) 
     throw ApiError.forbidden('Admin access required')
   }
 
-  ;(req as AuthenticatedRequest).user = user as AuthUser
+  ;(req as AuthenticatedRequest).user = user
   next()
 }

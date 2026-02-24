@@ -16,6 +16,8 @@ import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchem
 import { getUserPlanConfig } from '../../shared/plans.js'
 import { calculateGenerationCost } from '../../api/_lib/generation/config/worksheet-formats.js'
 import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
+import { isQueueAvailable, getWorksheetQueue, getWorksheetEvents, type WorksheetJobData } from '../lib/job-queue.js'
+import { bridgeJobToSSE } from '../lib/sse-bridge.js'
 
 const router = Router()
 
@@ -159,30 +161,84 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   }
 
   try {
-    const ai = getAIProvider()
-
     // Determine if user has paid access (subscription, generation pack, or admin)
     const isPaid = isPaidUser || req.user.hasPaidAccess || req.user.role === 'admin'
 
-    // Pass progress callback with extended params
-    const generateParams = {
-      subject: input.subject,
-      grade: input.grade,
-      topic: input.topic,
-      taskTypes: input.taskTypes,
-      difficulty: input.difficulty,
-      format: input.format,
-      variantIndex: input.variantIndex,
-      isPaid,
-    }
+    let worksheet: Worksheet
 
-    const aiSessionId = crypto.randomUUID()
-    const worksheet = await generationLimiter(() => withAIContext(
-      { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
-      () => ai.generateWorksheet(generateParams as GeneratePayload, (percent) => {
-        sendEvent({ type: 'progress', percent })
+    // BullMQ path: queue job + bridge events to SSE
+    if (isQueueAvailable()) {
+      const queue = getWorksheetQueue()!
+      const events = getWorksheetEvents()!
+
+      const jobData: WorksheetJobData = {
+        subject: input.subject,
+        grade: input.grade,
+        topic: input.topic,
+        taskTypes: input.taskTypes,
+        difficulty: input.difficulty,
+        format: input.format,
+        variantIndex: input.variantIndex,
+        isPaid,
+        userId,
+      }
+
+      const job = await queue.add('generate', jobData)
+      let jobResult: Worksheet | null = null
+      let jobError: string | null = null
+
+      await bridgeJobToSSE<Worksheet>({
+        jobId: job.id!,
+        queueEvents: events,
+        res,
+        isDisconnected: () => clientDisconnected,
+        onProgress: (percent) => sendEvent({ type: 'progress', percent }),
+        onCompleted: async (result) => { jobResult = result },
+        onFailed: (error) => { jobError = error },
       })
-    ))
+
+      if (clientDisconnected) {
+        // Client left — rollback cost, mark generation failed
+        console.log(`[API] Client disconnected during BullMQ generation, rolling back (user=${userId})`)
+        await db.update(users).set({
+          generationsLeft: sql`${users.generationsLeft} + ${cost}`,
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
+        if (genRecord) {
+          db.update(generations).set({ status: 'failed', errorMessage: 'Client disconnected' })
+            .where(eq(generations.id, genRecord.id)).catch(() => {})
+        }
+        res.end()
+        return
+      }
+
+      if (jobError || !jobResult) {
+        throw new Error(jobError || 'AI_ERROR')
+      }
+
+      worksheet = jobResult
+    } else {
+      // Fallback: p-limit in-process generation (Redis unavailable or USE_BULLMQ=false)
+      const ai = getAIProvider()
+      const generateParams = {
+        subject: input.subject,
+        grade: input.grade,
+        topic: input.topic,
+        taskTypes: input.taskTypes,
+        difficulty: input.difficulty,
+        format: input.format,
+        variantIndex: input.variantIndex,
+        isPaid,
+      }
+
+      const aiSessionId = crypto.randomUUID()
+      worksheet = await generationLimiter(() => withAIContext(
+        { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
+        () => ai.generateWorksheet(generateParams as GeneratePayload, (percent) => {
+          sendEvent({ type: 'progress', percent })
+        })
+      ))
+    }
 
     // Client disconnected after AI generation — skip PDF/save, rollback cost
     if (clientDisconnected) {

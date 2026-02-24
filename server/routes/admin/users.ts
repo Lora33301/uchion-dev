@@ -8,6 +8,7 @@ import { withAdminAuth } from '../../middleware/auth.js'
 import { ApiError } from '../../middleware/error-handler.js'
 import { requireRateLimit } from '../../middleware/rate-limit.js'
 import { revokeAllUserTokens } from '../../../api/_lib/auth/tokens.js'
+import { invalidateUserCache } from '../../lib/user-cache.js'
 import type { AuthenticatedRequest } from '../../types.js'
 
 /** Escape LIKE special characters to prevent wildcard injection */
@@ -308,6 +309,9 @@ router.post('/:id/block', withAdminAuth(async (req: AuthenticatedRequest, res: R
   // Revoke all refresh tokens so blocked user can't refresh access
   await revokeAllUserTokens(id)
 
+  // Invalidate user cache so auth middleware immediately sees the block
+  await invalidateUserCache(id)
+
   console.log(`[Admin] User ${id} blocked by admin ${req.user.id}, all tokens revoked`)
 
   return res.status(200).json({ success: true })
@@ -345,6 +349,8 @@ router.post('/:id/unblock', withAdminAuth(async (req: AuthenticatedRequest, res:
     .update(users)
     .set({ deletedAt: null, updatedAt: new Date() })
     .where(eq(users.id, id))
+
+  await invalidateUserCache(id)
 
   console.log(`[Admin] User ${id} unblocked by admin ${req.user.id}`)
 

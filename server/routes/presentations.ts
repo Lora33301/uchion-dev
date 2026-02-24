@@ -14,6 +14,9 @@ import { checkGenerateRateLimit } from '../middleware/rate-limit.js'
 import type { AuthenticatedRequest } from '../types.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
 import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
+import { isQueueAvailable, getPresentationQueue, getPresentationEvents, type PresentationJobData } from '../lib/job-queue.js'
+import { bridgeJobToSSE } from '../lib/sse-bridge.js'
+import type { PresentationStructure } from '../../shared/types.js'
 
 const router = Router()
 
@@ -154,42 +157,89 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
   }
 
   try {
-    // Try Claude provider first (for presentations), fall back to OpenAI
-    const claudeProvider = getClaudeProvider()
-    const fallbackProvider = getAIProvider()
-
     // Determine if user has paid subscription (use better model)
     const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
 
-    // 6. Call generatePresentation - prefer Claude for presentations
-    const provider = claudeProvider || fallbackProvider
-    console.log(`[API] Using ${claudeProvider ? 'Claude' : 'OpenAI'} provider for presentation generation`)
+    let structure: PresentationStructure
 
-    const aiSessionId = crypto.randomUUID()
-    const structure = await generationLimiter(() => withAIContext(
-      { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
-      () => provider.generatePresentation({
+    // BullMQ path: queue job + bridge events to SSE
+    if (isQueueAvailable()) {
+      const queue = getPresentationQueue()!
+      const events = getPresentationEvents()!
+
+      const jobData: PresentationJobData = {
         subject: input.subject,
         grade: input.grade,
         topic: input.topic,
-        themeType: 'preset',
-        themePreset: input.themePreset,
-        slideCount: input.slideCount as 12 | 18 | 24 | undefined,
+        themePreset: input.themePreset!,
+        slideCount: slideCount,
         isPaid,
-      }, (percent) => {
-        sendEvent({ type: 'progress', percent })
-      })
-    ))
+        userId,
+        useClaudeProvider: !!getClaudeProvider(),
+      }
 
-    // Client disconnected after AI generation — skip PPTX/PDF/save, rollback cost
-    if (clientDisconnected) {
-      console.log(`[API] Client disconnected during presentation generation, skipping PPTX/save (user=${userId})`)
-      await db.update(users).set({
-        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
-        updatedAt: new Date(),
-      }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
-      res.end()
-      return
+      const job = await queue.add('generate', jobData)
+      let jobResult: PresentationStructure | null = null
+      let jobError: string | null = null
+
+      await bridgeJobToSSE<PresentationStructure>({
+        jobId: job.id!,
+        queueEvents: events,
+        res,
+        isDisconnected: () => clientDisconnected,
+        onProgress: (percent) => sendEvent({ type: 'progress', percent }),
+        onCompleted: async (result) => { jobResult = result },
+        onFailed: (error) => { jobError = error },
+      })
+
+      if (clientDisconnected) {
+        console.log(`[API] Client disconnected during BullMQ presentation generation, rolling back (user=${userId})`)
+        await db.update(users).set({
+          generationsLeft: sql`${users.generationsLeft} + ${cost}`,
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
+        res.end()
+        return
+      }
+
+      if (jobError || !jobResult) {
+        throw new Error(jobError || 'AI_ERROR')
+      }
+
+      structure = jobResult
+    } else {
+      // Fallback: p-limit in-process generation
+      const claudeProvider = getClaudeProvider()
+      const fallbackProvider = getAIProvider()
+      const provider = claudeProvider || fallbackProvider
+      console.log(`[API] Using ${claudeProvider ? 'Claude' : 'OpenAI'} provider for presentation generation`)
+
+      const aiSessionId = crypto.randomUUID()
+      structure = await generationLimiter(() => withAIContext(
+        { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
+        () => provider.generatePresentation({
+          subject: input.subject,
+          grade: input.grade,
+          topic: input.topic,
+          themeType: 'preset',
+          themePreset: input.themePreset,
+          slideCount: input.slideCount as 12 | 18 | 24 | undefined,
+          isPaid,
+        }, (percent) => {
+          sendEvent({ type: 'progress', percent })
+        })
+      ))
+
+      // Client disconnected after AI generation — skip PPTX/PDF/save, rollback cost
+      if (clientDisconnected) {
+        console.log(`[API] Client disconnected during presentation generation, skipping PPTX/save (user=${userId})`)
+        await db.update(users).set({
+          generationsLeft: sql`${users.generationsLeft} + ${cost}`,
+          updatedAt: new Date(),
+        }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
+        res.end()
+        return
+      }
     }
 
     sendEvent({ type: 'progress', percent: 80 })

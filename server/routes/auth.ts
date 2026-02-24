@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express'
 import crypto from 'crypto'
+import bcrypt from 'bcrypt'
 import { eq, and, isNull, desc, sql, gt, count } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db/index.js'
@@ -490,14 +491,15 @@ router.post('/email/send-code', async (req: Request, res: Response) => {
       )
     )
 
-  // Generate 6-digit code
+  // Generate 6-digit code and hash it with bcrypt
   const code = crypto.randomInt(100000, 1000000).toString()
+  const codeHash = await bcrypt.hash(code, 10)
 
-  // Store code with 10-minute expiry
+  // Store hashed code with 10-minute expiry
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
   await db.insert(emailCodes).values({
     email,
-    code,
+    code: codeHash,
     expiresAt,
   })
 
@@ -572,10 +574,9 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
     throw ApiError.badRequest('Invalid or expired code')
   }
 
-  // Timing-safe comparison
-  const codeBuffer = Buffer.from(code, 'utf8')
-  const recordBuffer = Buffer.from(updated.code, 'utf8')
-  if (codeBuffer.length !== recordBuffer.length || !crypto.timingSafeEqual(codeBuffer, recordBuffer)) {
+  // Verify OTP with bcrypt (constant-time comparison built into bcrypt.compare)
+  const codeMatch = await bcrypt.compare(code, updated.code)
+  if (!codeMatch) {
     logLoginFailed(req, 'Wrong OTP code', 'email', { email, attempts: updated.attempts })
     throw ApiError.badRequest('Invalid or expired code')
   }

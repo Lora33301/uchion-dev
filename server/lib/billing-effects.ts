@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { users } from '../../db/schema.js'
+import { invalidateUserCache } from './user-cache.js'
 
 // ==================== PRODUCT CATALOG ====================
 
@@ -77,6 +78,7 @@ export async function applyProductEffect(
         })
         .where(eq(users.id, userId))
 
+      await invalidateUserCache(userId)
       console.log(`[Billing] Added ${generationsCount} generations (dynamic) to user ${userId}`)
       return { success: true, message: `Added ${generationsCount} generations` }
     }
@@ -100,6 +102,7 @@ export async function applyProductEffect(
     })
     .where(eq(users.id, userId))
 
+  await invalidateUserCache(userId)
   console.log(`[Billing] Added ${product.value} generations to user ${userId}`)
   return { success: true, message: `Added ${product.value} generations` }
 }

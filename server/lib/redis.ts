@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+export type { Redis }
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 
@@ -37,10 +38,37 @@ export function getRedisClient(): Redis | null {
 }
 
 /**
+ * Create a new Redis connection for BullMQ.
+ * BullMQ requires maxRetriesPerRequest: null for blocking BRPOPLPUSH.
+ * Each BullMQ component (Queue, Worker, QueueEvents) needs its own connection.
+ */
+export function createBullMQConnection(): Redis {
+  return new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    retryStrategy(times) {
+      if (times > 10) return null
+      return Math.min(times * 500, 5000)
+    },
+    enableOfflineQueue: true,
+  })
+}
+
+/**
  * Check if Redis is connected and ready
  */
 export function isRedisReady(): boolean {
   return redisReady
+}
+
+/**
+ * Gracefully close the shared Redis client.
+ */
+export async function closeRedis(): Promise<void> {
+  if (redisClient) {
+    await redisClient.quit()
+    redisClient = null
+    redisReady = false
+  }
 }
 
 /**
