@@ -117,6 +117,12 @@ router.get('/:id', withAuth(async (req: AuthenticatedRequest, res: Response) => 
     throw ApiError.internal('Failed to parse worksheet content')
   }
 
+  // Strip pdfBase64 from content to save bandwidth (200-400 KB)
+  // Client uses /api/generate/rebuild-pdf or /api/worksheets/:id/pdf instead
+  if (parsedContent && typeof parsedContent === 'object') {
+    delete parsedContent.pdfBase64
+  }
+
   return res.status(200).json({
     worksheet: {
       id: worksheet.id,
@@ -131,6 +137,50 @@ router.get('/:id', withAuth(async (req: AuthenticatedRequest, res: Response) => 
       updatedAt: worksheet.updatedAt,
     }
   })
+}))
+
+// ==================== GET /api/worksheets/:id/pdf ====================
+router.get('/:id/pdf', withAuth(async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user
+  const { id } = req.params
+
+  if (!id || !uuidRegex.test(id)) {
+    throw ApiError.badRequest('Invalid worksheet ID format')
+  }
+
+  await requireRateLimit(req, {
+    maxRequests: 30,
+    windowSeconds: 60,
+    identifier: `worksheet:pdf:${user.id}`,
+  })
+
+  const [worksheet] = await db
+    .select({
+      userId: worksheets.userId,
+      content: worksheets.content,
+    })
+    .from(worksheets)
+    .where(and(
+      eq(worksheets.id, id),
+      isNull(worksheets.deletedAt)
+    ))
+    .limit(1)
+
+  if (!worksheet) {
+    throw ApiError.notFound('Worksheet not found')
+  }
+
+  if (worksheet.userId !== user.id) {
+    throw ApiError.forbidden('Access denied')
+  }
+
+  try {
+    const parsed = JSON.parse(worksheet.content)
+    const pdfBase64 = parsed?.pdfBase64 || null
+    return res.status(200).json({ pdfBase64 })
+  } catch {
+    return res.status(200).json({ pdfBase64: null })
+  }
 }))
 
 // ==================== PATCH /api/worksheets/:id ====================

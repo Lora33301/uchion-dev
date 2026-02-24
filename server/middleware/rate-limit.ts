@@ -308,8 +308,9 @@ export async function checkDailyGenerationLimit(
   const key = `daily:gen:${userId}`
 
   if (!redis) {
-    console.warn('[RateLimit] Redis unavailable for daily limit check, denying request')
-    return { allowed: false, used: 0, limit: dailyLimit }
+    // Fail-open: allow generation when Redis is unavailable rather than blocking all paid users
+    console.error('[RateLimit] ALERT: Redis unavailable for daily limit check — allowing request (fail-open)')
+    return { allowed: true, used: 0, limit: dailyLimit }
   }
 
   try {
@@ -329,8 +330,9 @@ export async function checkDailyGenerationLimit(
 
     return { allowed: true, used: newCount, limit: dailyLimit }
   } catch (err) {
-    console.warn('[RateLimit] Daily limit check error, denying request:', err)
-    return { allowed: false, used: 0, limit: dailyLimit }
+    // Fail-open: allow generation on Redis errors rather than blocking all paid users
+    console.error('[RateLimit] ALERT: Daily limit check error — allowing request (fail-open):', err)
+    return { allowed: true, used: 0, limit: dailyLimit }
   }
 }
 

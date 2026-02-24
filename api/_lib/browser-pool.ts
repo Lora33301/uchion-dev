@@ -8,6 +8,7 @@ import fs from 'fs'
 
 const MAX_PAGES = parseInt(process.env.BROWSER_POOL_MAX_PAGES || '5', 10)
 const ACQUIRE_TIMEOUT_MS = 60_000
+const MAX_RENDERS_PER_PAGE = parseInt(process.env.BROWSER_POOL_MAX_RENDERS || '100', 10)
 
 // ── Chrome discovery ────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ let browser: Browser | null = null
 let launching: Promise<Browser> | null = null
 const available: Page[] = []
 let activeCount = 0
+const renderCounts = new WeakMap<Page, number>()
 
 interface Waiter {
   resolve: (page: Page) => void
@@ -172,9 +174,34 @@ export async function acquirePage(): Promise<Page> {
 /**
  * Release a Page back to the pool for reuse.
  * Navigates to about:blank to free memory from the previous document.
+ * Recycles pages after MAX_RENDERS_PER_PAGE renders to prevent memory leaks.
  */
 export async function releasePage(page: Page): Promise<void> {
   try {
+    // Increment render counter
+    const renders = (renderCounts.get(page) || 0) + 1
+    renderCounts.set(page, renders)
+
+    // Recycle page if it has exceeded max renders (prevents memory accumulation)
+    if (renders >= MAX_RENDERS_PER_PAGE) {
+      console.log(`[BrowserPool] Recycling page after ${renders} renders`)
+      activeCount--
+      try { await page.close() } catch { /* ignore */ }
+
+      // Create a fresh replacement for any waiters
+      if (waiters.length > 0 && browser) {
+        try {
+          const freshPage = await browser.newPage()
+          activeCount++
+          renderCounts.set(freshPage, 0)
+          const waiter = waiters.shift()!
+          clearTimeout(waiter.timer)
+          waiter.resolve(freshPage)
+        } catch { /* waiter will timeout */ }
+      }
+      return
+    }
+
     // Reset page state
     await page.goto('about:blank', { timeout: 5000 }).catch(() => {})
 
@@ -193,6 +220,20 @@ export async function releasePage(page: Page): Promise<void> {
     // Page is broken — discard it
     activeCount--
     try { await page.close() } catch { /* ignore */ }
+  }
+}
+
+/**
+ * Pre-warm the browser pool by launching the browser and creating one idle page.
+ * Call after server starts to avoid cold-start latency on first PDF generation.
+ */
+export async function warmupBrowserPool(): Promise<void> {
+  try {
+    const page = await acquirePage()
+    await releasePage(page)
+    console.log('[BrowserPool] Warmup complete — browser and one page ready')
+  } catch (err) {
+    console.warn('[BrowserPool] Warmup failed (will retry on first request):', err)
   }
 }
 

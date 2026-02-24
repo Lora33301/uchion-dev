@@ -260,6 +260,11 @@ async function start() {
     console.log(`Server running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
 
+    // Pre-warm browser pool to avoid cold-start on first PDF (non-blocking)
+    import('./api/_lib/browser-pool.js').then(({ warmupBrowserPool }) =>
+      warmupBrowserPool().catch(() => {})
+    ).catch(() => {})
+
     // Send startup alert to admins (non-blocking)
     import('./api/_lib/telegram/bot.js').then(({ sendAdminAlert }) => {
       const env = process.env.NODE_ENV || 'development'

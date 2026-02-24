@@ -104,30 +104,35 @@
 **Решение**: Для файлов с hash в имени: `Cache-Control: public, max-age=31536000, immutable`
 **Выполнено**: Отдельный `express.static('/assets', { maxAge: '1y', immutable: true })` для Vite hashed assets. Остальная статика (index.html) — `maxAge: 0`.
 
-### 15. Browser pool pre-warm
+### 15. ~~Browser pool pre-warm~~ DONE 24.02.2026
 **Проблема**: Первый PDF после деплоя = 3-8 секунд на запуск Chromium.
 **Файл**: `server.ts` (после `listen`)
 **Решение**: `browserPool.warmup()` при старте сервера.
+**Выполнено**: Экспорт `warmupBrowserPool()` из `browser-pool.ts`, вызов в `server.ts` после `app.listen` (non-blocking). Запускает browser + создаёт одну idle page.
 
-### 16. React Query staleTime
+### 16. ~~React Query staleTime~~ DONE (already configured)
 **Проблема**: `staleTime=0` (дефолт). Каждая навигация Dashboard → Worksheet → Dashboard = 3 refetch. При 50 юзерах = сотни лишних запросов.
 **Файлы**: QueryClient config или индивидуальные useQuery
 **Решение**: `staleTime: 30_000` для списков, `60_000` для auth/me.
+**Выполнено**: Глобальный `staleTime: 5 * 60 * 1000` (5 минут) + `refetchOnWindowFocus: false` уже установлены в `src/main.tsx`. Admin queries имеют собственные 30s staleTime.
 
-### 17. Redis failure — daily limit fail-open
+### 17. ~~Redis failure — daily limit fail-open~~ DONE 24.02.2026
 **Проблема**: `checkDailyGenerationLimit()` при недоступном Redis возвращает `allowed: false`. Все платные юзеры не могут генерировать. Молча.
 **Файл**: `server/middleware/rate-limit.ts:310-335`
 **Решение**: Fail-open с alert в логи + admin notification.
+**Выполнено**: `checkDailyGenerationLimit` теперь возвращает `allowed: true` при Redis unavailable/error. Логирование через `console.error` с ALERT пометкой для мониторинга.
 
-### 18. Strip pdfBase64 из GET /worksheets/:id
+### 18. ~~Strip pdfBase64 из GET /worksheets/:id~~ DONE 24.02.2026
 **Проблема**: Каждое открытие сохранённого листа тянет 200-400 KB base64 PDF внутри content JSON, даже если юзер не скачивает.
 **Файл**: `server/routes/worksheets.ts`
 **Решение**: Парсить JSON, удалять `pdfBase64` из content перед ответом. Отдельный endpoint `/worksheets/:id/pdf`.
+**Выполнено**: `delete parsedContent.pdfBase64` в GET /:id. Новый endpoint `GET /api/worksheets/:id/pdf` возвращает только `{ pdfBase64 }`. Экономит 200-400 KB на каждом открытии.
 
-### 19. Browser pool — page recycling
+### 19. ~~Browser pool — page recycling~~ DONE 24.02.2026
 **Проблема**: После сотен рендеров Chromium page накапливает memory. 5 страниц × 200 рендеров = утечка RAM.
 **Файл**: `api/_lib/browser-pool.ts`
 **Решение**: Счётчик рендеров на page, после ~100 — close и создать новую.
+**Выполнено**: WeakMap `renderCounts` отслеживает рендеры на page. После `MAX_RENDERS_PER_PAGE` (100, ENV-конфигурируемо) page закрывается и создаётся новая для ожидающих.
 
 ---
 
