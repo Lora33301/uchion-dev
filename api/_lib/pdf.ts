@@ -1,57 +1,15 @@
 // api/_lib/pdf.ts
-import puppeteer from 'puppeteer-core'
 import type { Worksheet, GeneratePayload } from '../../shared/types'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import { acquirePage, releasePage } from './browser-pool.js'
 
 export type PdfTemplateId = 'standard' | 'rainbow' | 'academic'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Find Chrome executable for local development
-function findLocalChrome(): string | null {
-  const possiblePaths: string[] = []
-
-  if (process.platform === 'win32') {
-    possiblePaths.push(
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-      process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    )
-  } else if (process.platform === 'darwin') {
-    possiblePaths.push(
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    )
-  } else {
-    possiblePaths.push(
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium',
-      '/usr/bin/chromium-browser',
-      '/snap/bin/chromium',
-    )
-  }
-
-  for (const p of possiblePaths) {
-    try {
-      if (fs.existsSync(p)) {
-        return p
-      }
-    } catch {
-      // Continue to next path
-    }
-  }
-  return null
-}
-
-// Check if we're running in serverless environment
-function isServerless(): boolean {
-  return !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY)
-}
 
 // Load Inter font as base64 for embedding in HTML
 function loadFontAsBase64(): { regular: string; bold: string } | null {
@@ -1808,62 +1766,17 @@ function processText(text: string): string {
 
 export async function buildPdf(worksheet: Worksheet, meta: GeneratePayload, templateId: PdfTemplateId = 'standard', addWatermark = false): Promise<string> {
   console.log('[PDF] Starting buildPdf...')
-  console.log('[PDF] isServerless:', isServerless())
 
-  let browser = null
+  const page = await acquirePage()
 
   try {
-    let executablePath: string
-    let args: string[] = []
-
-    if (isServerless()) {
-      console.log('[PDF] Using @sparticuz/chromium for serverless')
-      const chromium = await import('@sparticuz/chromium')
-      executablePath = await chromium.default.executablePath()
-      args = chromium.default.args
-      console.log('[PDF] Serverless executablePath:', executablePath)
-    } else {
-      console.log('[PDF] Looking for local Chrome...')
-      const localChrome = findLocalChrome()
-      console.log('[PDF] Found local Chrome:', localChrome)
-
-      if (!localChrome) {
-        throw new Error('Chrome/Chromium not found. Please install Chrome or set CHROME_PATH environment variable.')
-      }
-      executablePath = process.env.CHROME_PATH || localChrome
-      args = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ]
-      console.log('[PDF] Using executablePath:', executablePath)
-    }
-
-    console.log('[PDF] Launching puppeteer...')
-    browser = await puppeteer.launch({
-      args,
-      defaultViewport: {
-        width: 794,
-        height: 1123,
-        deviceScaleFactor: 2,
-      },
-      executablePath,
-      headless: true,
-    })
-    console.log('[PDF] Browser launched successfully')
-
-    const page = await browser.newPage()
-    console.log('[PDF] New page created')
-
     const html = generateWorksheetHtml(worksheet, templateId, addWatermark)
     console.log('[PDF] HTML generated, template:', templateId, 'watermark:', addWatermark, 'length:', html.length)
 
     await page.setContent(html, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'domcontentloaded',
       timeout: 30000
     })
-    console.log('[PDF] Content set to page')
 
     const pdfMargins = (templateId === 'rainbow' || templateId === 'academic')
       ? { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
@@ -1882,13 +1795,8 @@ export async function buildPdf(worksheet: Worksheet, meta: GeneratePayload, temp
     return base64
   } catch (error) {
     console.error('[PDF] Error generating PDF:', error)
-    console.error('[PDF] Error stack:', error instanceof Error ? error.stack : 'no stack')
     throw error
   } finally {
-    if (browser) {
-      console.log('[PDF] Closing browser...')
-      await browser.close()
-      console.log('[PDF] Browser closed')
-    }
+    await releasePage(page)
   }
 }

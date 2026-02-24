@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local', override: true })
 dotenv.config({ path: '.env' })
 import express, { type Request } from 'express'
+import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -60,6 +61,14 @@ const PORT = process.env.PORT || 3000
 app.set('trust proxy', 1)
 
 // ==================== MIDDLEWARE ====================
+
+// Compress responses (skip SSE streams and webhook endpoints)
+app.use(compression({
+  filter: (req, res) => {
+    if (res.getHeader('Content-Type')?.toString().includes('text/event-stream')) return false
+    return compression.filter(req, res)
+  },
+}))
 
 // Parse JSON bodies with raw body preservation for webhooks
 app.use(express.json({
@@ -220,7 +229,7 @@ import { runMigrations } from './db/index.js'
 async function start() {
   await runMigrations()
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
 
@@ -234,6 +243,16 @@ async function start() {
       }).catch(() => { /* ignore if Telegram unavailable */ })
     }).catch(() => { /* ignore */ })
   })
+
+  // Graceful shutdown — close browser pool
+  const shutdown = async () => {
+    console.log('[Shutdown] Closing browser pool...')
+    const { closeBrowserPool } = await import('./api/_lib/browser-pool.js')
+    await closeBrowserPool()
+    server.close(() => process.exit(0))
+  }
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 start().catch((err) => {
