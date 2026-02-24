@@ -4,15 +4,11 @@ import { z } from 'zod'
 import { db } from '../../db/index.js'
 import { users, presentations, subscriptions } from '../../db/schema.js'
 import { eq, sql, and, gt, desc, inArray } from 'drizzle-orm'
-import { getAIProvider, getClaudeProvider } from '../../api/_lib/ai-provider.js'
-import { generatePptx } from '../../api/_lib/presentations/generator.js'
-import { generatePresentationPdf } from '../../api/_lib/presentations/pdf-generator.js'
-import { sanitizePresentationStructure } from '../../api/_lib/presentations/sanitize.js'
-import { withAIContext } from '../../api/_lib/ai-usage.js'
 import { withAuth } from '../middleware/auth.js'
 import { checkGenerateRateLimit } from '../middleware/rate-limit.js'
 import type { AuthenticatedRequest } from '../types.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
+import { addGenerationJob, getQueueEvents } from '../lib/generation-queue.js'
 
 const router = Router()
 
@@ -136,142 +132,113 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
   res.flushHeaders()
 
   const sendEvent = (data: SSEEvent) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`)
+    if (!clientDisconnected) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`)
+    }
   }
 
+  // Determine if user has paid subscription (use better model)
+  const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
+
+  // Enqueue presentation generation job
+  let jobId: string
   try {
-    // Try Claude provider first (for presentations), fall back to OpenAI
-    const claudeProvider = getClaudeProvider()
-    const fallbackProvider = getAIProvider()
-
-    // Determine if user has paid subscription (use better model)
-    const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
-
-    // 6. Call generatePresentation - prefer Claude for presentations
-    const provider = claudeProvider || fallbackProvider
-    console.log(`[API] Using ${claudeProvider ? 'Claude' : 'OpenAI'} provider for presentation generation`)
-
-    const aiSessionId = crypto.randomUUID()
-    const structure = await withAIContext(
-      { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
-      () => provider.generatePresentation({
+    jobId = await addGenerationJob({
+      type: 'presentation',
+      userId,
+      userEmail: req.user.email || null,
+      userRole: req.user.role || 'user',
+      hasPaidAccess: req.user.hasPaidAccess || false,
+      input: {
         subject: input.subject,
         grade: input.grade,
         topic: input.topic,
-        themeType: 'preset',
-        themePreset: input.themePreset,
-        slideCount: input.slideCount as 12 | 18 | 24 | undefined,
-        isPaid,
-      }, (percent) => {
-        sendEvent({ type: 'progress', percent })
-      })
-    )
-
-    sendEvent({ type: 'progress', percent: 80 })
-
-    // 6b. Sanitize structure (filter empty slides, split practice/answers, etc.)
-    const sanitizedStructure = sanitizePresentationStructure(structure)
-    console.log(`[API] Sanitized: ${structure.slides.length} -> ${sanitizedStructure.slides.length} slides`)
-
-    // 7. Call generatePptx(structure, themePreset)
-    let pptxBase64: string
-    try {
-      pptxBase64 = await generatePptx(sanitizedStructure, input.themePreset!)
-    } catch (e) {
-      console.error('[API] PPTX generation error:', e)
-      sendEvent({ type: 'error', code: 'PDF_ERROR', message: '\u041e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438 \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u0438.' })
-      res.end()
-      return
-    }
-
-    sendEvent({ type: 'progress', percent: 90 })
-
-    // 7b. Generate PDF from same structure
-    let pdfBase64: string
-    try {
-      pdfBase64 = await generatePresentationPdf(sanitizedStructure, input.themePreset!)
-    } catch (e) {
-      console.error('[API] PDF generation error:', e)
-      // Non-fatal: PDF is optional, proceed with empty string
-      pdfBase64 = ''
-    }
-
-    sendEvent({ type: 'progress', percent: 95 })
-
-    // 8. Save to presentations table
-    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now())
-    let dbId: string | null = null
-
-    try {
-      const [inserted] = await db.insert(presentations).values({
-        userId,
-        title: sanitizedStructure.title,
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
-        themeType: 'preset',
-        themePreset: input.themePreset,
-        themeCustom: null,
-        slideCount: sanitizedStructure.slides.length,
-        structure: JSON.stringify(sanitizedStructure),
-        pptxBase64,
-      }).returning({ id: presentations.id })
-
-      dbId = inserted?.id || null
-
-      // Enforce presentation limit per user's plan: auto-delete oldest
-      const maxPresentations = planConfig.maxPresentations
-      if (maxPresentations > 0) {
-        const userPresentations = await db
-          .select({ id: presentations.id })
-          .from(presentations)
-          .where(eq(presentations.userId, userId))
-          .orderBy(desc(presentations.createdAt))
-
-        if (userPresentations.length > maxPresentations) {
-          const toDelete = userPresentations.slice(maxPresentations).map(p => p.id)
-          await db.delete(presentations).where(inArray(presentations.id, toDelete))
-        }
-      }
-    } catch (dbError) {
-      console.error('[API] Failed to save presentation to database:', dbError)
-    }
-
-    // 9. Send result via SSE
-    sendEvent({
-      type: 'result',
-      data: {
-        id: dbId || id,
-        title: sanitizedStructure.title,
-        pptxBase64,
-        pdfBase64,
-        slideCount: sanitizedStructure.slides.length,
-        structure: sanitizedStructure,
+        themePreset: input.themePreset!,
+        slideCount,
       },
+      isPaid,
+      cost,
+      maxPresentations: planConfig.maxPresentations,
     })
+  } catch (e) {
+    console.error('[API] Failed to enqueue presentation job:', e)
+    sendEvent({ type: 'error', code: 'SERVER_ERROR', message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' })
     res.end()
-
-  } catch (err: unknown) {
-    console.error('[API] Presentation generate error:', err)
-
-    // 10. On error: rollback generationsLeft
-    await db
-      .update(users)
-      .set({
-        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .catch((rollbackErr) => console.error('[API] Failed to rollback generationsLeft:', rollbackErr))
-
-    const code =
-      err instanceof Error && err.message === 'AI_ERROR'
-        ? 'AI_ERROR'
-        : 'SERVER_ERROR'
-
-    sendEvent({ type: 'error', code, message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' })
-    res.end()
+    return
   }
+
+  // SSE bridge: listen to queue events and forward to client
+  let clientDisconnected = false
+  const queueEvents = getQueueEvents()
+  const JOB_TIMEOUT_MS = 180_000 // 3 minutes
+
+  const onProgress = (args: { jobId: string; data: string | boolean | number | object }) => {
+    if (args.jobId !== jobId) return
+    const progress = args.data as { percent: number }
+    if (progress?.percent != null) {
+      sendEvent({ type: 'progress', percent: progress.percent })
+    }
+  }
+
+  const cleanup = () => {
+    queueEvents.off('progress', onProgress)
+    clearTimeout(timeoutHandle)
+  }
+
+  queueEvents.on('progress', onProgress)
+
+  // Wait for completed or failed
+  const jobPromise = new Promise<void>((resolve) => {
+    const onCompleted = (args: { jobId: string; returnvalue: string }) => {
+      if (args.jobId !== jobId) return
+      queueEvents.off('completed', onCompleted)
+      queueEvents.off('failed', onFailed)
+      if (!clientDisconnected) {
+        try {
+          const result = typeof args.returnvalue === 'string' ? JSON.parse(args.returnvalue) : args.returnvalue
+          sendEvent({ type: 'result', data: result.data })
+        } catch (e) {
+          console.error('[API] Failed to parse job result:', e)
+          sendEvent({ type: 'error', code: 'SERVER_ERROR', message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' })
+        }
+        res.end()
+      }
+      resolve()
+    }
+
+    const onFailed = (args: { jobId: string; failedReason: string }) => {
+      if (args.jobId !== jobId) return
+      queueEvents.off('completed', onCompleted)
+      queueEvents.off('failed', onFailed)
+      if (!clientDisconnected) {
+        const code = args.failedReason === 'AI_ERROR' ? 'AI_ERROR' : 'SERVER_ERROR'
+        sendEvent({ type: 'error', code, message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' })
+        res.end()
+      }
+      resolve()
+    }
+
+    queueEvents.on('completed', onCompleted)
+    queueEvents.on('failed', onFailed)
+  })
+
+  // Timeout: if job takes too long, send error to client (job continues in worker)
+  const timeoutHandle = setTimeout(() => {
+    if (!clientDisconnected) {
+      sendEvent({ type: 'error', code: 'TIMEOUT', message: 'Генерация заняла слишком долго. Результат будет сохранён в личном кабинете.' })
+      clientDisconnected = true
+      res.end()
+    }
+  }, JOB_TIMEOUT_MS)
+
+  // Client disconnect: stop sending SSE, job continues in worker
+  req.on('close', () => {
+    clientDisconnected = true
+    cleanup()
+  })
+
+  await jobPromise
+  cleanup()
 }))
 
 // ==================== GET /api/presentations ====================
