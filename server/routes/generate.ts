@@ -125,10 +125,16 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
 
+  // SSE keepalive ping — prevents nginx/Cloudflare from killing idle connections (60-75s timeout)
+  const keepalive = setInterval(() => {
+    if (!clientDisconnected) res.write(': ping\n\n')
+  }, 15_000)
+
   // Client disconnect detection — skip expensive work (PDF, DB save) if client left
   let clientDisconnected = false
   req.on('close', () => {
     clientDisconnected = true
+    clearInterval(keepalive)
   })
 
   const sendEvent = (data: SSEEvent) => {
@@ -359,6 +365,8 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
     sendEvent({ type: 'error', code, message: 'Не удалось сгенерировать лист. Попробуйте ещё раз.' })
     res.end()
+  } finally {
+    clearInterval(keepalive)
   }
 }))
 

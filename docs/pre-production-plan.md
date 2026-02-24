@@ -74,10 +74,11 @@
 
 ## P1 — ВАЖНО (первая неделя)
 
-### 10. SSE keepalive ping
+### 10. ~~SSE keepalive ping~~ DONE 24.02.2026
 **Проблема**: AI генерация 60-120 секунд. nginx/Cloudflare таймаут 60-75 сек idle. Без heartbeat proxy убьёт SSE.
 **Файлы**: `server/routes/generate.ts`, `presentations.ts`
 **Решение**: `setInterval(() => res.write(': ping\n\n'), 15000)` + cleanup в `finally`.
+**Выполнено**: Keepalive ping каждые 15 сек. clearInterval в `req.on('close')` и `finally` блоке.
 
 ### 11. Revoke tokens при блокировке пользователя
 **Проблема**: Admin блокирует юзера → access token живёт ещё до 1 часа, refresh token до 7 дней.

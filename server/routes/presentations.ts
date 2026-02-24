@@ -136,10 +136,16 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
 
+  // SSE keepalive ping — prevents nginx/Cloudflare from killing idle connections (60-75s timeout)
+  const keepalive = setInterval(() => {
+    if (!clientDisconnected) res.write(': ping\n\n')
+  }, 15_000)
+
   // Client disconnect detection — skip expensive work (PPTX, PDF, DB save) if client left
   let clientDisconnected = false
   req.on('close', () => {
     clientDisconnected = true
+    clearInterval(keepalive)
   })
 
   const sendEvent = (data: SSEEvent) => {
@@ -290,6 +296,8 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
 
     sendEvent({ type: 'error', code, message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' })
     res.end()
+  } finally {
+    clearInterval(keepalive)
   }
 }))
 
