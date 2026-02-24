@@ -63,7 +63,6 @@ let queueEvents: QueueEvents | null = null
 
 function getRedisOpts() {
   const url = process.env.REDIS_URL || 'redis://localhost:6379'
-  // BullMQ accepts IORedis options or a connection URL parsed into options
   const parsed = new URL(url)
   return {
     host: parsed.hostname || 'localhost',
@@ -72,6 +71,15 @@ function getRedisOpts() {
     username: parsed.username || undefined,
     db: parsed.pathname ? parseInt(parsed.pathname.slice(1) || '0', 10) : 0,
     maxRetriesPerRequest: null as unknown as number, // BullMQ requirement
+    retryStrategy(times: number) {
+      if (times > 20) return null // give up after ~2 min
+      return Math.min(times * 500, 5000) // 500ms, 1s, 1.5s, ... max 5s
+    },
+    reconnectOnError(err: Error) {
+      // Auto-reconnect on connection reset
+      return err.message.includes('ECONNRESET') || err.message.includes('ECONNREFUSED')
+    },
+    enableOfflineQueue: true,
   }
 }
 
@@ -104,8 +112,14 @@ export function initGenerationQueue(): void {
     console.error(`[Queue] Job ${job?.id} failed:`, err.message)
   })
 
+  // Throttle connection error logs to avoid spam on Redis flaps
+  let lastErrorLog = 0
   worker.on('error', (err) => {
-    console.error('[Queue] Worker error:', err.message)
+    const now = Date.now()
+    if (now - lastErrorLog > 30_000) { // log at most once per 30s
+      lastErrorLog = now
+      console.error('[Queue] Worker error:', err.message)
+    }
   })
 
   console.log(`[Queue] Generation queue initialized (concurrency: ${CONCURRENCY})`)
