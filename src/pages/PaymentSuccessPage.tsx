@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import Header from '../components/Header'
+import { useAuth } from '../lib/auth'
 
 function CheckCircleIcon({ className = "w-16 h-16" }: { className?: string }) {
   return (
@@ -16,12 +17,76 @@ interface PaymentStatus {
   paidAt: string | null
 }
 
+type PollingStatus = 'idle' | 'polling' | 'confirmed' | 'timeout'
+
 export default function PaymentSuccessPage() {
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('order_id')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pollingStatus, setPollingStatus] = useState<PollingStatus>('idle')
+
+  const { user, refreshAuth } = useAuth()
+  const initialValuesRef = useRef<{ generationsLeft: number; plan: string } | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const attemptsRef = useRef(0)
+
+  const stopPolling = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  // Capture initial values once user is available
+  useEffect(() => {
+    if (user && !initialValuesRef.current) {
+      initialValuesRef.current = {
+        generationsLeft: user.generationsLeft,
+        plan: user.subscription?.plan ?? 'free',
+      }
+    }
+  }, [user])
+
+  // Start polling after page loads
+  useEffect(() => {
+    if (!initialValuesRef.current || pollingStatus !== 'idle') return
+    setPollingStatus('polling')
+
+    timerRef.current = setInterval(async () => {
+      attemptsRef.current++
+
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' })
+        if (!res.ok) return
+
+        const data = await res.json()
+        const current = data.user
+        const initial = initialValuesRef.current!
+
+        const changed =
+          current.generationsLeft !== initial.generationsLeft ||
+          (current.subscription?.plan ?? 'free') !== initial.plan
+
+        if (changed) {
+          stopPolling()
+          await refreshAuth()
+          setPollingStatus('confirmed')
+          return
+        }
+      } catch {
+        // ignore network errors, keep polling
+      }
+
+      if (attemptsRef.current >= 20) {
+        stopPolling()
+        setPollingStatus('timeout')
+      }
+    }, 3000)
+
+    return stopPolling
+  }, [initialValuesRef.current, pollingStatus, stopPolling, refreshAuth])
 
   useEffect(() => {
     if (orderId) {
@@ -65,7 +130,20 @@ export default function PaymentSuccessPage() {
               Оплата прошла успешно!
             </h1>
 
-            {paymentStatus?.status === 'paid' ? (
+            {pollingStatus === 'confirmed' ? (
+              <p className="text-emerald-600 font-medium mb-8">
+                Генерации зачислены!
+              </p>
+            ) : pollingStatus === 'timeout' ? (
+              <p className="text-amber-600 mb-8">
+                Если генерации не появились, обновите страницу или обратитесь в поддержку.
+              </p>
+            ) : pollingStatus === 'polling' ? (
+              <div className="flex items-center justify-center gap-2 text-slate-500 mb-8">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-emerald-600" />
+                <span>Проверяем зачисление...</span>
+              </div>
+            ) : paymentStatus?.status === 'paid' ? (
               <p className="text-slate-600 mb-8">
                 {paymentStatus.productName} успешно добавлены в ваш аккаунт.
               </p>
