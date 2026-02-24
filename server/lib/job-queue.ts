@@ -3,11 +3,12 @@ import { createBullMQConnection } from './redis.js'
 import { getAIProvider, getClaudeProvider } from '../../api/_lib/ai-provider.js'
 import { withAIContext } from '../../api/_lib/ai-usage.js'
 import type { GeneratePayload } from '../../shared/types.js'
+import type { Subject } from '../../shared/worksheet.js'
 
 // ==================== TYPES ====================
 
 export interface WorksheetJobData {
-  subject: string
+  subject: Subject
   grade: number
   topic: string
   taskTypes?: string[]
@@ -19,7 +20,7 @@ export interface WorksheetJobData {
 }
 
 export interface PresentationJobData {
-  subject: string
+  subject: Subject
   grade: number
   topic: string
   themePreset: string

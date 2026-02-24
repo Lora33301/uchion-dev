@@ -1,5 +1,5 @@
 import type { Response } from 'express'
-import type { QueueEvents, Job } from 'bullmq'
+import type { QueueEvents } from 'bullmq'
 
 const JOB_TIMEOUT_MS = 180_000 // 3 minutes
 
@@ -43,17 +43,21 @@ export function bridgeJobToSSE<T>(options: SSEBridgeOptions<T>): Promise<void> {
       }
     }, JOB_TIMEOUT_MS)
 
-    // Event handlers
-    const handleProgress = ({ jobId: id, data }: { jobId: string; data: number | object }) => {
-      if (id !== jobId || isDisconnected()) return
-      const percent = typeof data === 'number' ? data : (data as { percent?: number }).percent ?? 0
+    // Event handlers match QueueEventsListener signatures: (args, id) => void
+    const handleProgress = (args: { jobId: string; data: string | boolean | number | object }, _id: string) => {
+      if (args.jobId !== jobId || isDisconnected()) return
+      const percent = typeof args.data === 'number'
+        ? args.data
+        : (typeof args.data === 'object' && args.data !== null && 'percent' in args.data)
+          ? (args.data as { percent: number }).percent
+          : 0
       onProgress(percent)
     }
 
-    const handleCompleted = async ({ jobId: id, returnvalue }: { jobId: string; returnvalue: string }) => {
-      if (id !== jobId) return
+    const handleCompleted = async (args: { jobId: string; returnvalue: string; prev?: string }, _id: string) => {
+      if (args.jobId !== jobId) return
       try {
-        const result = JSON.parse(returnvalue) as T
+        const result = JSON.parse(args.returnvalue) as T
         await onCompleted(result)
       } catch (err) {
         onFailed(err instanceof Error ? err.message : 'Failed to process result')
@@ -61,9 +65,9 @@ export function bridgeJobToSSE<T>(options: SSEBridgeOptions<T>): Promise<void> {
       settle()
     }
 
-    const handleFailed = ({ jobId: id, failedReason }: { jobId: string; failedReason: string }) => {
-      if (id !== jobId) return
-      onFailed(failedReason || 'Job failed')
+    const handleFailed = (args: { jobId: string; failedReason: string; prev?: string }, _id: string) => {
+      if (args.jobId !== jobId) return
+      onFailed(args.failedReason || 'Job failed')
       settle()
     }
 
