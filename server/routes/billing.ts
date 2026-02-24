@@ -961,8 +961,16 @@ async function handleSubscriptionWebhook(
     return res.status(200).json({ status: 'subscription_renewed' })
   }
 
-  if (!isSuccess && isAutopayment) {
-    // FAILED AUTO-PAYMENT
+  const isFailed = paymentStatus === 'fail' || paymentStatus === 'failed'
+
+  if (!isSuccess && isAutopayment && !isFailed) {
+    // NON-FINAL STATUS (e.g. status=unknown) — Prodamus informational webhook, ignore
+    console.log(`[Subscription Webhook] Non-final autopayment status=${paymentStatus} for user ${userId}, ignoring`)
+    return res.status(200).json({ status: 'noted' })
+  }
+
+  if (isFailed && isAutopayment) {
+    // FAILED AUTO-PAYMENT (explicit fail/failed status only)
     console.log(`[Subscription Webhook] Failed auto-payment for user ${userId}`)
 
     await db

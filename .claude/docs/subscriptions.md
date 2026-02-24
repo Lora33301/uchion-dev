@@ -25,9 +25,10 @@ Recurring subscriptions via **Prodamus club functionality**. Each plan has its o
 3. Prodamus shows payment form, user pays
 4. Prodamus sends webhook to `POST /api/billing/webhook` with `subscription` object
 5. Webhook handler resolves userId via fallback chain, activates subscription
-6. On auto-renewal: Prodamus repeats webhook (`autopayment=1`)
-7. On failed charge: status `past_due`, generations NOT reset
-8. On deactivation: status `expired`, user downgraded to free
+6. On auto-renewal: Prodamus repeats webhook (`autopayment=1`, `status=success`)
+7. On non-final autopayment status (e.g. `status=unknown`): **ignored** (Prodamus informational webhook)
+8. On failed charge (`status=fail/failed`, `autopayment=1`): status `past_due`, generations NOT reset
+9. On deactivation (`active_user=0`): status `expired`, user downgraded to free
 
 ## Webhook userId Fallback
 
@@ -67,6 +68,12 @@ Both point to the same handler:
 4. Otherwise → deepseek (free model)
 
 **Important**: `hasPaidAccess` flag is set ONLY when buying generation packs (in `billing-effects.ts`), NOT when activating a subscription. Subscriptions use their own check via `planConfig.paidModel`. When subscription expires, user returns to deepseek.
+
+## Prodamus Webhook Gotchas
+
+1. **`_param_*` fields not forwarded** in subscription webhooks (see userId fallback chain above)
+2. **`status=unknown` after first payment**: Prodamus sends a second webhook with `status=unknown, autopayment=true, active_user=0` right after the first successful payment. This is an informational webhook about recurring payment setup — must be ignored, NOT treated as a failed payment. Only `status=fail/failed` should trigger `past_due`.
+3. **Event routing order matters**: Non-final autopayment statuses are filtered out before the `subscriptionInactive` check, preventing false expiration from `active_user=0` on informational webhooks.
 
 ## Key Files
 
