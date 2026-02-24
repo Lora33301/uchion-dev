@@ -13,6 +13,7 @@ type Store = {
   saveSession: (id: string, data: SessionData) => void
   getSession: (id: string) => SessionData | undefined
   setCurrent: (id: string) => void
+  clearAll: () => void
 }
 
 export const useSessionStore = create<Store>((set, get) => ({
@@ -20,5 +21,6 @@ export const useSessionStore = create<Store>((set, get) => ({
   currentSessionId: null,
   saveSession: (id, data) => set(s => ({ sessions: { ...s.sessions, [id]: data } })),
   getSession: id => get().sessions[id],
-  setCurrent: id => set({ currentSessionId: id })
+  setCurrent: id => set({ currentSessionId: id }),
+  clearAll: () => set({ sessions: {}, currentSessionId: null })
 }))

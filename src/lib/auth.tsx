@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { useSessionStore } from '../store/session'
 
 // ==================== TYPES ====================
 
@@ -58,6 +59,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
+  const prevUserIdRef = useRef<string | null>(null)
+
+  // Clear session store when user identity changes
+  useEffect(() => {
+    if (user && prevUserIdRef.current && prevUserIdRef.current !== user.id) {
+      useSessionStore.getState().clearAll()
+    }
+    prevUserIdRef.current = user?.id ?? null
+  }, [user])
 
   // Try to refresh token and get user
   const tryRefresh = useCallback(async (): Promise<boolean> => {
@@ -134,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include',
       })
     } finally {
+      useSessionStore.getState().clearAll()
       setUser(null)
       setStatus('unauthenticated')
     }
