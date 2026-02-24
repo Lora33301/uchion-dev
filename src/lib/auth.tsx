@@ -43,7 +43,7 @@ export interface User {
 interface AuthContextType {
   user: User | null
   status: 'loading' | 'authenticated' | 'unauthenticated'
-  signInWithYandex: () => void
+  signInWithYandex: (mailingConsent?: boolean) => void
   signOut: () => Promise<void>
   refreshAuth: () => Promise<void>
 }
@@ -118,7 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkAuth])
 
   // OAuth redirect handlers
-  const signInWithYandex = () => {
+  const signInWithYandex = (mailingConsent?: boolean) => {
+    if (mailingConsent) {
+      document.cookie = 'uchion_mailing_consent=1; path=/api/auth/; max-age=600; SameSite=Lax'
+    }
     window.location.href = '/api/auth/yandex/redirect'
   }
 

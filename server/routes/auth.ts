@@ -14,6 +14,8 @@ import {
   setPKCECookie,
   getStateCookie,
   getPKCECookie,
+  getMailingConsentCookie,
+  clearMailingConsentCookie,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from '../middleware/cookies.js'
@@ -370,6 +372,8 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
       return res.redirect(302, `${appUrl}/login?error=authentication_failed`)
     }
 
+    const mailingConsent = getMailingConsentCookie(req)
+
     if (!user) {
       const [newUser] = await db
         .insert(users)
@@ -381,20 +385,29 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
           providerId: oauthUser.providerId,
           role: 'user',
           generationsLeft: 5,
+          mailingConsent,
         })
         .returning()
 
       user = newUser
-    } else if (!user.provider) {
-      await db
-        .update(users)
-        .set({
-          provider: 'yandex',
-          providerId: oauthUser.providerId,
-          image: user.image || oauthUser.image,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, user.id))
+    } else {
+      if (!user.provider) {
+        await db
+          .update(users)
+          .set({
+            provider: 'yandex',
+            providerId: oauthUser.providerId,
+            image: user.image || oauthUser.image,
+            ...(mailingConsent && !user.mailingConsent ? { mailingConsent: true } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, user.id))
+      } else if (mailingConsent && !user.mailingConsent) {
+        await db
+          .update(users)
+          .set({ mailingConsent: true, updatedAt: new Date() })
+          .where(eq(users.id, user.id))
+      }
     }
 
     const accessToken = createAccessToken({
@@ -405,6 +418,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
 
     setAuthCookies(res, { accessToken, refreshToken })
     clearOAuthCookies(res)
+    clearMailingConsentCookie(res)
 
     logOAuthCallbackSuccess(req, user.id, user.email, 'yandex')
 
@@ -492,6 +506,7 @@ router.post('/email/send-code', async (req: Request, res: Response) => {
 const verifyCodeSchema = z.object({
   email: emailSchema,
   code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+  mailingConsent: z.boolean().optional(),
 })
 
 router.post('/email/verify-code', async (req: Request, res: Response) => {
@@ -502,6 +517,7 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
 
   const email = parsed.data.email.toLowerCase()
   const { code } = parsed.data
+  const mailingConsent = !!parsed.data.mailingConsent
 
   // Rate limit: 10 per 10 min per IP + per email
   await requireEmailVerifyCodeRateLimit(req, email)
@@ -581,16 +597,24 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
         emailVerified: new Date(),
         role: 'user',
         generationsLeft: 5,
+        mailingConsent,
       })
       .returning()
 
     user = newUser
-  } else if (!user.emailVerified) {
-    // Existing user, mark email as verified
-    await db
-      .update(users)
-      .set({ emailVerified: new Date(), updatedAt: new Date() })
-      .where(eq(users.id, user.id))
+  } else {
+    // Existing user updates
+    const updates: Record<string, unknown> = {}
+    if (!user.emailVerified) {
+      updates.emailVerified = new Date()
+    }
+    if (mailingConsent && !user.mailingConsent) {
+      updates.mailingConsent = true
+    }
+    if (Object.keys(updates).length > 0) {
+      updates.updatedAt = new Date()
+      await db.update(users).set(updates).where(eq(users.id, user.id))
+    }
   }
 
   // Create JWT tokens (same as Yandex OAuth callback)

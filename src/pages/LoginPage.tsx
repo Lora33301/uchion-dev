@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [consentAccepted, setConsentAccepted] = useState(false)
   const [mailingConsentAccepted, setMailingConsentAccepted] = useState(false)
-  const allConsentsAccepted = consentAccepted && mailingConsentAccepted
+  const allConsentsAccepted = consentAccepted
 
   // Email OTP state
   const [step, setStep] = useState<Step>('email')
@@ -73,7 +73,7 @@ export default function LoginPage() {
     if (!allConsentsAccepted) return
     setError(null)
     setIsLoading(true)
-    signInWithYandex()
+    signInWithYandex(mailingConsentAccepted)
   }
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -125,7 +125,7 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, mailingConsent: mailingConsentAccepted }),
       })
 
       if (res.ok) {
@@ -293,7 +293,7 @@ export default function LoginPage() {
                 Войти через Яндекс
               </button>
 
-              {!allConsentsAccepted && (
+              {!consentAccepted && (
                 <p className="mt-4 text-center text-xs text-slate-400">
                   Для входа необходимо принять условия
                 </p>

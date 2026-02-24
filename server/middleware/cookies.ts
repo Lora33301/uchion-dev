@@ -135,3 +135,21 @@ export function getStateCookie(req: Request): string | null {
 export function getPKCECookie(req: Request): string | null {
   return getTokenFromCookie(req, PKCE_COOKIE)
 }
+
+// ==================== MAILING CONSENT COOKIE ====================
+
+const MAILING_CONSENT_COOKIE = 'uchion_mailing_consent'
+
+export function setMailingConsentCookie(res: Response, value: boolean): void {
+  if (value) {
+    setCookie(res, MAILING_CONSENT_COOKIE, '1', OAUTH_COOKIE_MAX_AGE, OAUTH_COOKIE_PATH)
+  }
+}
+
+export function getMailingConsentCookie(req: Request): boolean {
+  return getTokenFromCookie(req, MAILING_CONSENT_COOKIE) === '1'
+}
+
+export function clearMailingConsentCookie(res: Response): void {
+  clearCookie(res, MAILING_CONSENT_COOKIE, OAUTH_COOKIE_PATH)
+}

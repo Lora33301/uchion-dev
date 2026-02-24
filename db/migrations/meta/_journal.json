@@ -99,6 +99,13 @@
       "when": 1771500000000,
       "tag": "0013_fix_starter_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1771600000000,
+      "tag": "0014_add_mailing_consent",
+      "breakpoints": true
     }
   ]
 }
