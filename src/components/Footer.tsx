@@ -19,8 +19,8 @@ export default function Footer() {
           <div>
             <Link to="/" className="inline-block mb-3">
               <span className="text-2xl font-bold">
-                <span className="text-[#8C52FF]">Учи</span>
-                <span className="text-slate-800">Он</span>
+                <span className="text-slate-800">Учи</span>
+                <span className="text-[#8C52FF]">Он</span>
               </span>
             </Link>
             <p className="text-sm text-slate-500 leading-relaxed">
@@ -82,17 +82,17 @@ export default function Footer() {
               &copy; {currentYear} УчиОн &mdash; сервис для учителей
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-              <a href="#" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
+              <Link to="/legal/user-agreement" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
                 Пользовательское соглашение
-              </a>
+              </Link>
               <span className="text-slate-300">|</span>
-              <a href="#" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
+              <Link to="/legal/privacy-policy" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
                 Политика конфиденциальности
-              </a>
+              </Link>
               <span className="text-slate-300">|</span>
-              <a href="#" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
-                Договор оферты
-              </a>
+              <Link to="/legal/data-consent" className="text-xs text-slate-400 hover:text-[#8C52FF] transition-colors">
+                Согласие на обработку данных
+              </Link>
             </div>
           </div>
         </div>
