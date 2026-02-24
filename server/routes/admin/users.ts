@@ -7,6 +7,7 @@ import { users, worksheets, generations, subscriptions, payments, folders, payme
 import { withAdminAuth } from '../../middleware/auth.js'
 import { ApiError } from '../../middleware/error-handler.js'
 import { requireRateLimit } from '../../middleware/rate-limit.js'
+import { revokeAllUserTokens } from '../../../api/_lib/auth/tokens.js'
 import type { AuthenticatedRequest } from '../../types.js'
 
 /** Escape LIKE special characters to prevent wildcard injection */
@@ -304,7 +305,10 @@ router.post('/:id/block', withAdminAuth(async (req: AuthenticatedRequest, res: R
     .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(eq(users.id, id))
 
-  console.log(`[Admin] User ${id} blocked by admin ${req.user.id}`)
+  // Revoke all refresh tokens so blocked user can't refresh access
+  await revokeAllUserTokens(id)
+
+  console.log(`[Admin] User ${id} blocked by admin ${req.user.id}, all tokens revoked`)
 
   return res.status(200).json({ success: true })
 }))

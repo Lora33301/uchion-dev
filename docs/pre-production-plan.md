@@ -80,25 +80,29 @@
 **Решение**: `setInterval(() => res.write(': ping\n\n'), 15000)` + cleanup в `finally`.
 **Выполнено**: Keepalive ping каждые 15 сек. clearInterval в `req.on('close')` и `finally` блоке.
 
-### 11. Revoke tokens при блокировке пользователя
+### 11. ~~Revoke tokens при блокировке пользователя~~ DONE 24.02.2026
 **Проблема**: Admin блокирует юзера → access token живёт ещё до 1 часа, refresh token до 7 дней.
 **Файл**: `server/routes/admin/users.ts`
 **Решение**: При `deletedAt` вызвать `revokeAllUserTokens(userId)`.
+**Выполнено**: Import `revokeAllUserTokens` из `tokens.ts`, вызов после `UPDATE users SET deletedAt` в block endpoint. Все refresh tokens юзера моментально revoked.
 
-### 12. Refresh token cleanup cron
+### 12. ~~Refresh token cleanup cron~~ DONE 24.02.2026
 **Проблема**: `cleanupExpiredTokens()` существует, но нигде не вызывается. Таблица `refresh_tokens` растёт бесконечно.
 **Файл**: `api/_lib/auth/tokens.ts`
 **Решение**: `setInterval(cleanupExpiredTokens, 6 * 60 * 60 * 1000)` в `server.ts`.
+**Выполнено**: `setInterval` каждые 6 часов + однократный запуск при старте. `clearInterval` в graceful shutdown.
 
-### 13. Composite DB indexes
+### 13. ~~Composite DB indexes~~ DONE 24.02.2026
 **Проблема**: Самый частый запрос `WHERE user_id AND deleted_at IS NULL ORDER BY created_at DESC` использует 3 отдельных индекса вместо одного composite.
 **Файл**: `db/schema.ts`
 **Решение**: `index('worksheets_user_active_idx').on(worksheets.userId, worksheets.deletedAt, worksheets.createdAt)`
+**Выполнено**: 4 composite индекса: `worksheets_user_active_idx` (userId, deletedAt, createdAt), `folders_user_active_idx` (userId, deletedAt), `presentations_user_created_idx` (userId, createdAt), `generations_user_created_idx` (userId, createdAt). Миграция `0016_add_composite_indexes.sql`.
 
-### 14. Static assets — immutable cache headers
+### 14. ~~Static assets — immutable cache headers~~ DONE 24.02.2026
 **Проблема**: Vite генерирует файлы с content-hash, но `express.static` отдаёт `max-age=0`. Браузер перевалидирует на каждом визите.
 **Файл**: `server.ts`
 **Решение**: Для файлов с hash в имени: `Cache-Control: public, max-age=31536000, immutable`
+**Выполнено**: Отдельный `express.static('/assets', { maxAge: '1y', immutable: true })` для Vite hashed assets. Остальная статика (index.html) — `maxAge: 0`.
 
 ### 15. Browser pool pre-warm
 **Проблема**: Первый PDF после деплоя = 3-8 секунд на запуск Chromium.

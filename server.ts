@@ -204,7 +204,18 @@ const isCompiledServer = __dirname.endsWith('dist-server')
 const distPath = isCompiledServer
   ? path.join(__dirname, '..', 'dist')
   : path.join(__dirname, 'dist')
-app.use(express.static(distPath))
+
+// Serve Vite hashed assets with immutable cache (1 year)
+// Vite outputs to dist/assets/ with content-hash filenames
+app.use('/assets', express.static(path.join(distPath, 'assets'), {
+  maxAge: '1y',
+  immutable: true,
+}))
+
+// Serve remaining static files (index.html, favicon, etc.) with short cache
+app.use(express.static(distPath, {
+  maxAge: '0',
+}))
 
 // SPA fallback - serve index.html for all non-API routes
 // Express 5 requires named wildcard pattern
@@ -229,6 +240,22 @@ import { runMigrations } from './db/index.js'
 async function start() {
   await runMigrations()
 
+  // Periodically clean up expired refresh tokens (every 6 hours)
+  const SIX_HOURS = 6 * 60 * 60 * 1000
+  const tokenCleanupInterval = setInterval(async () => {
+    try {
+      const { cleanupExpiredTokens } = await import('./api/_lib/auth/tokens.js')
+      await cleanupExpiredTokens()
+      console.log('[Cron] Expired refresh tokens cleaned up')
+    } catch (err) {
+      console.error('[Cron] Failed to clean up expired tokens:', err)
+    }
+  }, SIX_HOURS)
+  // Run once at startup too
+  import('./api/_lib/auth/tokens.js').then(({ cleanupExpiredTokens }) =>
+    cleanupExpiredTokens().then(() => console.log('[Startup] Initial token cleanup done')).catch(() => {})
+  ).catch(() => {})
+
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
@@ -244,9 +271,10 @@ async function start() {
     }).catch(() => { /* ignore */ })
   })
 
-  // Graceful shutdown — close browser pool
+  // Graceful shutdown — close browser pool and cleanup intervals
   const shutdown = async () => {
-    console.log('[Shutdown] Closing browser pool...')
+    console.log('[Shutdown] Cleaning up...')
+    clearInterval(tokenCleanupInterval)
     const { closeBrowserPool } = await import('./api/_lib/browser-pool.js')
     await closeBrowserPool()
     server.close(() => process.exit(0))

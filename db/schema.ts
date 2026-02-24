@@ -61,6 +61,8 @@ export const folders = pgTable('folders', {
   userIdIdx: index('folders_user_id_idx').on(table.userId),
   parentIdIdx: index('folders_parent_id_idx').on(table.parentId),
   deletedAtIdx: index('folders_deleted_at_idx').on(table.deletedAt),
+  // Composite: covers WHERE userId = ? AND deletedAt IS NULL
+  userActiveIdx: index('folders_user_active_idx').on(table.userId, table.deletedAt),
 }))
 
 // ==================== WORKSHEETS TABLE ====================
@@ -87,6 +89,8 @@ export const worksheets = pgTable('worksheets', {
   gradeIdx: index('worksheets_grade_idx').on(table.grade),
   createdAtIdx: index('worksheets_created_at_idx').on(table.createdAt),
   deletedAtIdx: index('worksheets_deleted_at_idx').on(table.deletedAt),
+  // Composite: covers WHERE userId = ? AND deletedAt IS NULL ORDER BY createdAt DESC
+  userActiveIdx: index('worksheets_user_active_idx').on(table.userId, table.deletedAt, table.createdAt),
 }))
 
 // ==================== GENERATIONS TABLE ====================
@@ -107,6 +111,8 @@ export const generations = pgTable('generations', {
   userIdIdx: index('generations_user_id_idx').on(table.userId),
   statusIdx: index('generations_status_idx').on(table.status),
   createdAtIdx: index('generations_created_at_idx').on(table.createdAt),
+  // Composite: covers WHERE userId = ? ORDER BY createdAt DESC
+  userCreatedIdx: index('generations_user_created_idx').on(table.userId, table.createdAt),
 }))
 
 // ==================== SUBSCRIPTIONS TABLE ====================
@@ -241,6 +247,8 @@ export const presentations = pgTable('presentations', {
   folderIdIdx: index('presentations_folder_id_idx').on(table.folderId),
   subjectIdx: index('presentations_subject_idx').on(table.subject),
   createdAtIdx: index('presentations_created_at_idx').on(table.createdAt),
+  // Composite: covers WHERE userId = ? ORDER BY createdAt DESC
+  userCreatedIdx: index('presentations_user_created_idx').on(table.userId, table.createdAt),
 }))
 
 // ==================== AI USAGE TABLE ====================
