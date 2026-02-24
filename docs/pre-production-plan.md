@@ -186,21 +186,25 @@
 
 ## P3 — ПОСЛЕ TIMEWEB (нужен нормальный Redis)
 
-### 31. Job queue (BullMQ)
+### 31. ~~Job queue (BullMQ)~~ DONE 24.02.2026
 Полноценная очередь генерации с retry, dead letter queue, concurrency control.
 BullMQ несовместим с Upstash — нужен стандартный Redis.
+**Выполнено**: `server/lib/job-queue.ts` — 2 очереди (worksheet-generation, presentation-generation), in-process воркеры с `concurrency: MAX_CONCURRENT_GENERATIONS`. `server/lib/sse-bridge.ts` — BullMQ→SSE мост с 180s timeout. Feature flag `USE_BULLMQ=true` (default false), p-limit fallback при Redis unavailable. Graceful shutdown: closeQueues → closeBrowserPool → closeRedis.
 
-### 32. Redis-кэш пользователя в auth middleware
+### 32. ~~Redis-кэш пользователя в auth middleware~~ DONE 24.02.2026
 Каждый запрос = SELECT из users. При 100 RPS = 100 DB-запросов/сек.
 Redis cache на 5 минут с invalidation при изменении роли.
+**Выполнено**: `server/lib/user-cache.ts` — getCachedUser/setCachedUser/invalidateUserCache (TTL 5 мин, fail-open). Auth middleware (`withAuth`, `optionalAuth`, `requireAdmin`) использует общую `resolveUser()` с кэш-проверкой перед DB. Инвалидация в admin/users.ts (block/unblock), billing-effects.ts (hasPaidAccess), billing-subscription-webhook.ts (подписка: активация, продление, истечение).
 
-### 33. S3/filesystem для PDF
+### 33. S3/filesystem для PDF — ОТЛОЖЕНО
 `pdfBase64` в JSON-колонке БД. Колонка `pdf_url` уже есть в schema, но не используется.
 Вынести в файловую систему или S3, в БД только URL.
+**Решение**: pdfBase64 ~335KB — терпимо на текущем масштабе. Откладываем до >5000 пользователей.
 
-### 34. OTP коды — хеширование
+### 34. ~~OTP коды — хеширование~~ DONE 24.02.2026
 Сейчас plaintext в БД. При компрометации БД — можно читать OTP.
 Bcrypt hash при сохранении, compare при проверке.
+**Выполнено**: `server/routes/auth.ts` — send-code хеширует OTP через `bcrypt.hash(code, 10)`, verify-code проверяет через `bcrypt.compare()` (constant-time). Существующие plaintext коды истекают за 10 минут, миграция БД не нужна.
 
 ### 35. Webhook IP allowlisting
 Prodamus webhooks проверяются только по HMAC. Добавить whitelist IP.
@@ -227,11 +231,11 @@ Prodamus webhooks проверяются только по HMAC. Добавит�
 
 ## Оценка усилий
 
-| Приоритет | Количество задач | Примерно |
-|-----------|-----------------|----------|
-| P0 (блокирует) | 9 задач | 1-2 дня |
-| P1 (важно) | 10 задач | 2-3 дня |
-| P2 (долг) | 11 задач | 3-5 дней |
-| P3 (после Timeweb) | 5 задач | 2-3 дня |
+| Приоритет | Количество задач | Статус |
+|-----------|-----------------|--------|
+| P0 (блокирует) | 9 задач | **ВСЕ DONE** |
+| P1 (важно) | 10 задач | **ВСЕ DONE** |
+| P2 (долг) | 11 задач | Запланировано |
+| P3 (после Timeweb) | 5 задач | **3 DONE, 1 отложена, 1 запланирована** |
 
-**Минимум до деплоя: P0 (1-2 дня)**. P1 — первая неделя после запуска. P2/P3 — по мере роста.
+**P0 + P1 + P3 (критические) выполнены.** P2 — рефакторинг по мере роста. #33 (S3 для PDF) отложена — pdfBase64 ~335KB терпимо.

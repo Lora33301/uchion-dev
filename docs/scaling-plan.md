@@ -39,9 +39,9 @@
 
 ### Changes
 1. **Semantic Caching**: поиск похожих тем, если совпадение >95% -- кеш
-2. **Distributed Rate Limiting**: Redis (ioredis уже в зависимостях) вместо in-memory
+2. ~~**Distributed Rate Limiting**: Redis (ioredis уже в зависимостях) вместо in-memory~~ **DONE** — Redis rate limiting уже реализован
 3. **Response Caching**: кеш популярных шаблонов, CDN для статики
-4. **Puppeteer Optimization**: переиспользование browser instance, pre-warming
+4. ~~**Puppeteer Optimization**: переиспользование browser instance, pre-warming~~ **DONE** — browser pool с page recycling, pre-warm при старте
 
 ---
 
@@ -66,7 +66,7 @@
 
 ### Changes
 1. **Load Balancing**: несколько Express instances за nginx/Traefik
-2. **Queue System**: BullMQ для фоновой генерации (worksheets + presentations)
+2. ~~**Queue System**: BullMQ для фоновой генерации (worksheets + presentations)~~ **DONE** — `server/lib/job-queue.ts`, feature flag `USE_BULLMQ=true`
 3. **DB Scaling**: connection pooling (pgBouncer), read replicas
 4. **Separate Puppeteer Service**: отдельный microservice для PDF
 
