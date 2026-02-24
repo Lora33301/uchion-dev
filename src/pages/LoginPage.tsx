@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [consentAccepted, setConsentAccepted] = useState(false)
+  const [mailingConsentAccepted, setMailingConsentAccepted] = useState(false)
+  const allConsentsAccepted = consentAccepted && mailingConsentAccepted
 
   // Email OTP state
   const [step, setStep] = useState<Step>('email')
@@ -68,7 +70,7 @@ export default function LoginPage() {
   }, [step])
 
   const handleYandexSignIn = () => {
-    if (!consentAccepted) return
+    if (!allConsentsAccepted) return
     setError(null)
     setIsLoading(true)
     signInWithYandex()
@@ -78,7 +80,7 @@ export default function LoginPage() {
 
   const handleSendCode = async () => {
     if (isBusyRef.current) return
-    if (!consentAccepted || !isValidEmail(email)) return
+    if (!allConsentsAccepted || !isValidEmail(email)) return
     isBusyRef.current = true
     setError(null)
     setIsLoading(true)
@@ -195,7 +197,7 @@ export default function LoginPage() {
           {step === 'email' ? (
             <>
               {/* Legal consent checkbox */}
-              <label className="flex items-start gap-3 mb-6 cursor-pointer select-none">
+              <label className="flex items-start gap-3 mb-4 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={consentAccepted}
@@ -204,14 +206,34 @@ export default function LoginPage() {
                 />
                 <span className="text-sm text-slate-600 leading-relaxed">
                   Я принимаю{' '}
-                  <span className="text-[#8C52FF] underline underline-offset-2">
+                  <a href="/legal/user-agreement" target="_blank" rel="noopener noreferrer" className="text-[#8C52FF] underline underline-offset-2 hover:text-[#7B3FE4]" onClick={(e) => e.stopPropagation()}>
                     Пользовательское соглашение
-                  </span>
+                  </a>
                   , с{' '}
-                  <span className="text-[#8C52FF] underline underline-offset-2">
+                  <a href="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#8C52FF] underline underline-offset-2 hover:text-[#7B3FE4]" onClick={(e) => e.stopPropagation()}>
                     Политикой в отношении обработки персональных данных
-                  </span>{' '}
+                  </a>{' '}
                   ознакомлен(а)
+                </span>
+              </label>
+
+              {/* Mailing consent checkbox */}
+              <label className="flex items-start gap-3 mb-6 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={mailingConsentAccepted}
+                  onChange={(e) => setMailingConsentAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#8C52FF] focus:ring-[#8C52FF] accent-[#8C52FF] cursor-pointer shrink-0"
+                />
+                <span className="text-sm text-slate-600 leading-relaxed">
+                  Даю{' '}
+                  <a href="/legal/data-consent" target="_blank" rel="noopener noreferrer" className="text-[#8C52FF] underline underline-offset-2 hover:text-[#7B3FE4]" onClick={(e) => e.stopPropagation()}>
+                    Согласие на обработку персональных данных в целях рассылки
+                  </a>
+                  {' '}и{' '}
+                  <a href="/legal/ads-consent" target="_blank" rel="noopener noreferrer" className="text-[#8C52FF] underline underline-offset-2 hover:text-[#7B3FE4]" onClick={(e) => e.stopPropagation()}>
+                    Согласие на получение рассылки рекламных материалов
+                  </a>
                 </span>
               </label>
 
@@ -223,7 +245,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSendCode() }}
                   placeholder="Введите email"
-                  disabled={!consentAccepted || isLoading}
+                  disabled={!allConsentsAccepted || isLoading}
                   className="h-14 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-base text-slate-700 placeholder-slate-400 outline-none transition-all focus:border-[#8C52FF] focus:ring-2 focus:ring-[#8C52FF]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
@@ -231,7 +253,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleSendCode}
-                disabled={!consentAccepted || !isValidEmail(email) || isLoading}
+                disabled={!allConsentsAccepted || !isValidEmail(email) || isLoading}
                 className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#8C52FF] text-base font-semibold text-white transition-all hover:bg-[#7B3FE4] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -271,7 +293,7 @@ export default function LoginPage() {
                 Войти через Яндекс
               </button>
 
-              {!consentAccepted && (
+              {!allConsentsAccepted && (
                 <p className="mt-4 text-center text-xs text-slate-400">
                   Для входа необходимо принять условия
                 </p>

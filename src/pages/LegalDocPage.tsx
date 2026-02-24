@@ -3,6 +3,7 @@ import Header from '../components/Header'
 import agreementData from '../data/agreement.json'
 import privacyData from '../data/privacy.json'
 import consentData from '../data/consent.json'
+import consentAdsData from '../data/consent_ads.json'
 
 type Paragraph = { t: string; b: boolean; l?: boolean }
 
@@ -18,6 +19,10 @@ const docs: Record<string, { title: string; data: Paragraph[] }> = {
   'data-consent': {
     title: 'Согласие на обработку данных',
     data: consentData as Paragraph[],
+  },
+  'ads-consent': {
+    title: 'Согласие на получение рассылки рекламных материалов',
+    data: consentAdsData as Paragraph[],
   },
 }
 
