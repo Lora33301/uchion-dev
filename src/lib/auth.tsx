@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { useSessionStore } from '../store/session'
+import { queryClient } from './query-client'
 
 // ==================== TYPES ====================
 
@@ -61,10 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
   const prevUserIdRef = useRef<string | null>(null)
 
-  // Clear session store when user identity changes
+  // Clear all cached data when user identity changes (account switch)
   useEffect(() => {
     if (user && prevUserIdRef.current && prevUserIdRef.current !== user.id) {
       useSessionStore.getState().clearAll()
+      queryClient.clear()
     }
     prevUserIdRef.current = user?.id ?? null
   }, [user])
@@ -145,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     } finally {
       useSessionStore.getState().clearAll()
+      queryClient.clear()
       setUser(null)
       setStatus('unauthenticated')
     }
