@@ -10,6 +10,26 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/katex')) return 'vendor-katex'
+          if (id.includes('node_modules/pdf-lib')) return 'vendor-pdf'
+          if (
+            id.includes('node_modules/react-hook-form') ||
+            id.includes('node_modules/@hookform/resolvers') ||
+            id.includes('node_modules/zod')
+          ) return 'vendor-forms'
+          if (
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react/')
+          ) return 'vendor-react'
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

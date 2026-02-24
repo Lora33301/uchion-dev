@@ -125,7 +125,14 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
 
+  // Client disconnect detection — skip expensive work (PDF, DB save) if client left
+  let clientDisconnected = false
+  req.on('close', () => {
+    clientDisconnected = true
+  })
+
   const sendEvent = (data: SSEEvent) => {
+    if (clientDisconnected) return
     res.write(`data: ${JSON.stringify(data)}\n\n`)
   }
 
@@ -170,6 +177,21 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
         sendEvent({ type: 'progress', percent })
       })
     ))
+
+    // Client disconnected after AI generation — skip PDF/save, rollback cost
+    if (clientDisconnected) {
+      console.log(`[API] Client disconnected during generation, skipping PDF/save (user=${userId})`)
+      await db.update(users).set({
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
+        updatedAt: new Date(),
+      }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
+      if (genRecord) {
+        db.update(generations).set({ status: 'failed', errorMessage: 'Client disconnected' })
+          .where(eq(generations.id, genRecord.id)).catch(() => {})
+      }
+      res.end()
+      return
+    }
 
     sendEvent({ type: 'progress', percent: 97 })
 

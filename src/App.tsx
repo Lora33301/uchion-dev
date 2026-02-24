@@ -3,18 +3,20 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import CookieConsent from './components/CookieConsent'
 import Footer from './components/Footer'
 import GeneratePage from './pages/GeneratePage'
-import GeneratePresentationPage from './pages/GeneratePresentationPage'
-import WorksheetPage from './pages/WorksheetPage'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import WorksheetsListPage from './pages/WorksheetsListPage'
-import SavedWorksheetPage from './pages/SavedWorksheetPage'
-import SavedPresentationPage from './pages/SavedPresentationPage'
-import PresentationsListPage from './pages/PresentationsListPage'
-import PaymentSuccessPage from './pages/PaymentSuccessPage'
-import PaymentCancelPage from './pages/PaymentCancelPage'
-import LegalDocPage from './pages/LegalDocPage'
-import PricingPage from './pages/PricingPage'
+
+// Non-critical pages -- lazy-loaded to reduce the initial bundle.
+const GeneratePresentationPage = lazy(() => import('./pages/GeneratePresentationPage'))
+const WorksheetPage = lazy(() => import('./pages/WorksheetPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const WorksheetsListPage = lazy(() => import('./pages/WorksheetsListPage'))
+const SavedWorksheetPage = lazy(() => import('./pages/SavedWorksheetPage'))
+const SavedPresentationPage = lazy(() => import('./pages/SavedPresentationPage'))
+const PresentationsListPage = lazy(() => import('./pages/PresentationsListPage'))
+const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'))
+const PaymentCancelPage = lazy(() => import('./pages/PaymentCancelPage'))
+const LegalDocPage = lazy(() => import('./pages/LegalDocPage'))
+const PricingPage = lazy(() => import('./pages/PricingPage'))
 
 // Admin pages -- lazy-loaded into a separate chunk.
 // The AdminPage layout itself checks the user role before rendering,
@@ -37,7 +39,7 @@ function ScrollToTop() {
   return null
 }
 
-function AdminFallback() {
+function PageFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-200 border-t-[#8C52FF]"></div>
@@ -55,34 +57,34 @@ export default function App() {
       <div className="flex-1">
       <Routes>
         <Route path="/" element={<GeneratePage />} />
-        <Route path="/presentations/generate" element={<GeneratePresentationPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/worksheet/:sessionId" element={<WorksheetPage />} />
-        <Route path="/worksheets" element={<WorksheetsListPage />} />
-        <Route path="/worksheets/:id" element={<SavedWorksheetPage />} />
-        <Route path="/presentations" element={<PresentationsListPage />} />
-        <Route path="/presentations/:id" element={<SavedPresentationPage />} />
+        <Route path="/presentations/generate" element={<Suspense fallback={<PageFallback />}><GeneratePresentationPage /></Suspense>} />
+        <Route path="/login" element={<Suspense fallback={<PageFallback />}><LoginPage /></Suspense>} />
+        <Route path="/dashboard" element={<Suspense fallback={<PageFallback />}><DashboardPage /></Suspense>} />
+        <Route path="/worksheet/:sessionId" element={<Suspense fallback={<PageFallback />}><WorksheetPage /></Suspense>} />
+        <Route path="/worksheets" element={<Suspense fallback={<PageFallback />}><WorksheetsListPage /></Suspense>} />
+        <Route path="/worksheets/:id" element={<Suspense fallback={<PageFallback />}><SavedWorksheetPage /></Suspense>} />
+        <Route path="/presentations" element={<Suspense fallback={<PageFallback />}><PresentationsListPage /></Suspense>} />
+        <Route path="/presentations/:id" element={<Suspense fallback={<PageFallback />}><SavedPresentationPage /></Suspense>} />
 
         {/* Pricing */}
-        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/pricing" element={<Suspense fallback={<PageFallback />}><PricingPage /></Suspense>} />
 
         {/* Legal docs */}
-        <Route path="/legal/:slug" element={<LegalDocPage />} />
+        <Route path="/legal/:slug" element={<Suspense fallback={<PageFallback />}><LegalDocPage /></Suspense>} />
 
         {/* Payment routes */}
-        <Route path="/payment/success" element={<PaymentSuccessPage />} />
-        <Route path="/payment/cancel" element={<PaymentCancelPage />} />
+        <Route path="/payment/success" element={<Suspense fallback={<PageFallback />}><PaymentSuccessPage /></Suspense>} />
+        <Route path="/payment/cancel" element={<Suspense fallback={<PageFallback />}><PaymentCancelPage /></Suspense>} />
 
         {/* Admin routes -- lazy loaded */}
-        <Route path="/admin" element={<Suspense fallback={<AdminFallback />}><AdminPage /></Suspense>}>
-          <Route index element={<Suspense fallback={<AdminFallback />}><AdminOverview /></Suspense>} />
-          <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsersPage /></Suspense>} />
-          <Route path="users/:id" element={<Suspense fallback={<AdminFallback />}><AdminUserDetailPage /></Suspense>} />
-          <Route path="generations" element={<Suspense fallback={<AdminFallback />}><AdminGenerationsPage /></Suspense>} />
-          <Route path="payments" element={<Suspense fallback={<AdminFallback />}><AdminPaymentsPage /></Suspense>} />
-          <Route path="ai-costs" element={<Suspense fallback={<AdminFallback />}><AdminAICostsPage /></Suspense>} />
-          <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettingsPage /></Suspense>} />
+        <Route path="/admin" element={<Suspense fallback={<PageFallback />}><AdminPage /></Suspense>}>
+          <Route index element={<Suspense fallback={<PageFallback />}><AdminOverview /></Suspense>} />
+          <Route path="users" element={<Suspense fallback={<PageFallback />}><AdminUsersPage /></Suspense>} />
+          <Route path="users/:id" element={<Suspense fallback={<PageFallback />}><AdminUserDetailPage /></Suspense>} />
+          <Route path="generations" element={<Suspense fallback={<PageFallback />}><AdminGenerationsPage /></Suspense>} />
+          <Route path="payments" element={<Suspense fallback={<PageFallback />}><AdminPaymentsPage /></Suspense>} />
+          <Route path="ai-costs" element={<Suspense fallback={<PageFallback />}><AdminAICostsPage /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageFallback />}><AdminSettingsPage /></Suspense>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

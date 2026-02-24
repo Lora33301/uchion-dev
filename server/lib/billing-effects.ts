@@ -7,8 +7,8 @@ import { users } from '../../db/schema.js'
 export interface ProductInfo {
   name: string
   price: number  // in rubles
-  type: 'generations' | 'subscription'
-  value: number | boolean  // generations count or subscription flag
+  type: 'generations'
+  value: number
 }
 
 export const PRODUCTS: Record<string, ProductInfo> = {
@@ -37,12 +37,7 @@ export const PRODUCTS: Record<string, ProductInfo> = {
     type: 'generations',
     value: 100,
   },
-  'premium_monthly': {
-    name: 'Премиум подписка (месяц)',
-    price: 499,
-    type: 'subscription',
-    value: true,
-  },
+  // Subscriptions handled separately via billing-subscription-webhook.ts (Prodamus club)
 }
 
 // Dynamic pricing configuration
@@ -96,25 +91,15 @@ export async function applyProductEffect(
     return { success: false, message: `Unknown product code: ${productCode}` }
   }
 
-  if (product.type === 'generations') {
-    await db
-      .update(users)
-      .set({
-        generationsLeft: sql`${users.generationsLeft} + ${product.value}`,
-        hasPaidAccess: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
+  await db
+    .update(users)
+    .set({
+      generationsLeft: sql`${users.generationsLeft} + ${product.value}`,
+      hasPaidAccess: true,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
 
-    console.log(`[Billing] Added ${product.value} generations to user ${userId}`)
-    return { success: true, message: `Added ${product.value} generations` }
-  }
-
-  if (product.type === 'subscription') {
-    // TODO: Implement subscription logic
-    console.log(`[Billing] Granted subscription to user ${userId}`)
-    return { success: true, message: 'Subscription activated' }
-  }
-
-  return { success: false, message: 'Unknown product type' }
+  console.log(`[Billing] Added ${product.value} generations to user ${userId}`)
+  return { success: true, message: `Added ${product.value} generations` }
 }

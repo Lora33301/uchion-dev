@@ -100,7 +100,12 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
 
     // Find payment intent
     const [paymentIntent] = await db
-      .select()
+      .select({
+        id: paymentIntents.id,
+        userId: paymentIntents.userId,
+        productCode: paymentIntents.productCode,
+        status: paymentIntents.status,
+      })
       .from(paymentIntents)
       .where(eq(paymentIntents.providerOrderId, String(orderId)))
       .limit(1)

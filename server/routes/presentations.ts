@@ -136,7 +136,14 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders()
 
+  // Client disconnect detection — skip expensive work (PPTX, PDF, DB save) if client left
+  let clientDisconnected = false
+  req.on('close', () => {
+    clientDisconnected = true
+  })
+
   const sendEvent = (data: SSEEvent) => {
+    if (clientDisconnected) return
     res.write(`data: ${JSON.stringify(data)}\n\n`)
   }
 
@@ -167,6 +174,17 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
         sendEvent({ type: 'progress', percent })
       })
     ))
+
+    // Client disconnected after AI generation — skip PPTX/PDF/save, rollback cost
+    if (clientDisconnected) {
+      console.log(`[API] Client disconnected during presentation generation, skipping PPTX/save (user=${userId})`)
+      await db.update(users).set({
+        generationsLeft: sql`${users.generationsLeft} + ${cost}`,
+        updatedAt: new Date(),
+      }).where(eq(users.id, userId)).catch(e => console.error('[API] Rollback failed:', e))
+      res.end()
+      return
+    }
 
     sendEvent({ type: 'progress', percent: 80 })
 

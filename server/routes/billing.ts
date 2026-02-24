@@ -399,7 +399,14 @@ router.post('/cancel-subscription', withAuth(async (req, res) => {
   try {
     // Find active subscription
     const [sub] = await db
-      .select()
+      .select({
+        id: subscriptions.id,
+        plan: subscriptions.plan,
+        status: subscriptions.status,
+        prodamusSubscriptionId: subscriptions.prodamusSubscriptionId,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+        cancelledAt: subscriptions.cancelledAt,
+      })
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
       .limit(1)

@@ -23,21 +23,23 @@
 **Эффект**: Защита от burst без Redis-зависимости.
 **Выполнено**: `api/_lib/generation/concurrency-limiter.ts` + обёрнуты generate, regenerate-task, presentations/generate. ENV: `MAX_CONCURRENT_GENERATIONS=10`.
 
-### 2. DB pool увеличить до 20
+### 2. ~~DB pool увеличить до 20~~ DONE 24.02.2026
 **Проблема**: `max: 10` в `db/index.ts`. Одна генерация = 4-6 DB-операций. При 10 параллельных генерациях + API-запросы = pool exhaustion.
 **Файл**: `db/index.ts`
 **Решение**: `max: parseInt(process.env.DB_POOL_MAX || '20')`
+**Выполнено**: Pool size конфигурируется через `DB_POOL_MAX` env var, дефолт 20.
 
-### 3. Client disconnect detection (ghost generations)
+### 3. ~~Client disconnect detection (ghost generations)~~ DONE 24.02.2026
 **Проблема**: Юзер закрывает вкладку — AI-вызов продолжается, Puppeteer-слот занят, токены потрачены впустую. Нет `req.on('close')`.
 **Файлы**: `server/routes/generate.ts`, `server/routes/presentations.ts`
-**Решение**: `AbortController` + `req.on('close', () => abort())` + проверка `aborted` между шагами pipeline.
+**Решение**: `req.on('close')` + `clientDisconnected` flag + проверка между шагами pipeline.
+**Выполнено**: После AI-генерации проверяется `clientDisconnected`. Если клиент ушёл — PDF/PPTX/DB save пропускаются, generationsLeft откатывается, generation record помечается failed.
 
-### 4. Frontend bundle splitting — lazy load страниц
-**Проблема**: Все 11 страниц в одном бандле. pptxgenjs (1.3 MB) + KaTeX (300 KB) грузятся для всех.
+### 4. ~~Frontend bundle splitting — lazy load страниц~~ DONE 24.02.2026
+**Проблема**: Все 11 страниц в одном бандле. KaTeX (300 KB) + pdf-lib (428 KB) грузятся для всех.
 **Файлы**: `src/App.tsx`, `vite.config.ts`
 **Решение**: `React.lazy()` на все страницы кроме GeneratePage (лендинг). manualChunks в vite.config для vendor-библиотек.
-**Эффект**: Начальный бандл -60-70%.
+**Выполнено**: 12 страниц lazy-loaded. Vendor chunks: vendor-react (163KB), vendor-katex (265KB), vendor-pdf (428KB), vendor-forms (81KB). Начальный бандл index.js = 258KB.
 
 ### 5. ~~Кеширование шрифта в PDF генерации~~ DONE 24.02.2026
 **Проблема**: `loadFontAsBase64()` читает 2 файла с диска (300-400 KB каждый) и конвертирует в base64 **на каждый PDF**. При 20 генерациях = 40 чтений.
@@ -45,10 +47,11 @@
 **Решение**: Module-level cache: `let cachedFonts: {...} | null = null`, заполняется один раз.
 **Выполнено**: Шрифт кешируется в `cachedFonts` при первом вызове, дальше берётся из памяти.
 
-### 6. billing-effects.ts — TODO-заглушка возвращает success
-**Проблема**: `applyProductEffect()` для `subscription` типа возвращает `{ success: true }` БЕЗ действий. Если вебхук попадёт в эту ветку — подписка не активируется, но ответ "успех".
-**Файл**: `server/lib/billing-effects.ts:113-117`
-**Решение**: Либо удалить subscription из PRODUCTS (подписки через отдельный `billing-subscription-webhook.ts`), либо реализовать логику.
+### 6. ~~billing-effects.ts — TODO-заглушка возвращает success~~ DONE 24.02.2026
+**Проблема**: `applyProductEffect()` для `subscription` типа возвращает `{ success: true }` БЕЗ действий.
+**Файл**: `server/lib/billing-effects.ts`
+**Решение**: Удалён `premium_monthly` из PRODUCTS и мёртвая ветка `subscription` type. Подписки идут через отдельный `billing-subscription-webhook.ts`.
+**Выполнено**: ProductInfo тип упрощён до `type: 'generations'` only. Dead code удалён.
 
 ### 7. ~~Admin router — глобальный withAdminAuth~~ DONE 24.02.2026
 **Проблема**: Каждый файл в `server/routes/admin/` сам ставит `withAdminAuth` на каждый route. Забыл — публичный доступ к admin API.
@@ -56,10 +59,11 @@
 **Решение**: `router.use(requireAdmin)` на уровне роутера.
 **Выполнено**: Добавлен `requireAdmin` middleware в `server/middleware/auth.ts`, подключён в `admin/index.ts`. Все admin routes защищены на уровне роутера.
 
-### 8. select() без column projection — утечка полей
-**Проблема**: В нескольких routes `.select()` без колонок тянет ВСЕ поля (provider, providerId, telegramChatId...). Не отдаётся клиенту напрямую, но risk при будущих изменениях.
-**Файлы**: `server/routes/auth.ts:365,578`, `billing.ts:402`, `billing-webhook.ts:103`
-**Решение**: Явные column projections: `.select({ id: users.id, email: users.email, ... })`
+### 8. ~~select() без column projection — утечка полей~~ DONE 24.02.2026
+**Проблема**: В нескольких routes `.select()` без колонок тянет ВСЕ поля (provider, providerId, telegramChatId...).
+**Файлы**: `server/routes/auth.ts`, `billing.ts`, `billing-webhook.ts`
+**Решение**: Явные column projections на все bare `.select()` — auth.ts (3 места), billing.ts (1), billing-webhook.ts (1).
+**Выполнено**: Все 5 мест получили явные column projections. Чувствительные поля (providerId, telegramChatId) исключены.
 
 ### 9. ~~Удалить legacy и мусор~~ DONE 24.02.2026
 - `api/_lib/auth/middleware.ts` — legacy auth middleware, не используется, создаёт путаницу

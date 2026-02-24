@@ -363,7 +363,16 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
     })
 
     let [user] = await db
-      .select()
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        image: users.image,
+        role: users.role,
+        provider: users.provider,
+        mailingConsent: users.mailingConsent,
+        deletedAt: users.deletedAt,
+      })
       .from(users)
       .where(eq(users.email, oauthUser.email.toLowerCase()))
       .limit(1)
@@ -525,7 +534,10 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
 
   // Find the latest unused, non-expired code for this email
   const [record] = await db
-    .select()
+    .select({
+      id: emailCodes.id,
+      attempts: emailCodes.attempts,
+    })
     .from(emailCodes)
     .where(
       and(
@@ -576,7 +588,15 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
 
   // Find or create user (include soft-deleted to avoid unique constraint violation)
   let [user] = await db
-    .select()
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      emailVerified: users.emailVerified,
+      mailingConsent: users.mailingConsent,
+      deletedAt: users.deletedAt,
+    })
     .from(users)
     .where(eq(users.email, email))
     .limit(1)

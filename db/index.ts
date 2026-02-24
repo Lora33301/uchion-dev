@@ -19,7 +19,7 @@ if (!process.env.DATABASE_URL) {
 
 // Create postgres client
 const client = postgres(process.env.DATABASE_URL, {
-  max: 10,
+  max: parseInt(process.env.DB_POOL_MAX || '20', 10),
   idle_timeout: 20,
   connect_timeout: 10,
 })
