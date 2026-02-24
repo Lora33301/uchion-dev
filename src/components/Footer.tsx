@@ -14,14 +14,17 @@ export default function Footer() {
   return (
     <footer className="bg-slate-50 border-t border-slate-200">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
-          {/* Logo & description */}
-          <div className="sm:col-span-2 lg:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
+          {/* Brand & description */}
+          <div>
             <Link to="/" className="inline-block mb-3">
-              <img src="/logo.png" alt="УчиОн" className="h-12" />
+              <span className="text-2xl font-bold">
+                <span className="text-[#8C52FF]">Учи</span>
+                <span className="text-slate-800">Он</span>
+              </span>
             </Link>
             <p className="text-sm text-slate-500 leading-relaxed">
-              Сервис для учителей по созданию рабочих листов и презентаций с помощью ИИ. Быстрый экспорт в PDF и PPTX.
+              Сервис для учителей по созданию рабочих листов и презентаций с помощью ИИ
             </p>
           </div>
 
@@ -64,20 +67,16 @@ export default function Footer() {
               </li>
             </ul>
           </div>
+        </div>
 
-          {/* Contacts */}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-3">Контакты</h3>
-            <div className="space-y-1.5 text-sm text-slate-500">
-              <p>ИП Холодова Екатерина Ильинична</p>
-              <p>ИНН 774397723210</p>
-              <p>ОГРИП 323774600670908</p>
-            </div>
-          </div>
+        {/* ИП info */}
+        <div className="mt-8 pt-6 border-t border-slate-200 text-xs text-slate-400 space-y-1">
+          <p>ИП Холодова Екатерина Ильинична</p>
+          <p>ИНН 774397723210 &middot; ОГРИП 323774600670908</p>
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 pt-6 border-t border-slate-200">
+        <div className="mt-4 pt-4 border-t border-slate-100">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-slate-400">
               &copy; {currentYear} УчиОн &mdash; сервис для учителей
