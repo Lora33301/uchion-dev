@@ -31,6 +31,8 @@ export const users = pgTable('users', {
   providerId: varchar('provider_id', { length: 255 }),
   // Mailing consent
   mailingConsent: boolean('mailing_consent').notNull().default(false),
+  // Telegram bonus (1 free generation for visiting TG channel)
+  telegramBonusClaimed: boolean('telegram_bonus_claimed').notNull().default(false),
   // Telegram alerts for admins
   telegramChatId: varchar('telegram_chat_id', { length: 50 }),  // Telegram chat ID for sending alerts
   wantsAlerts: boolean('wants_alerts').notNull().default(false),  // Flag: wants to receive alerts

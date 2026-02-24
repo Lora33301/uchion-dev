@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
@@ -79,8 +79,30 @@ function formatDate(dateStr: string | null): string {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { user, status, signOut } = useAuth()
+  const { user, status, signOut, refreshAuth } = useAuth()
   const [showBuyModal, setShowBuyModal] = useState(false)
+  const [bonusClaiming, setBonusClaiming] = useState(false)
+
+  const handleClaimTelegramBonus = useCallback(async () => {
+    if (bonusClaiming) return
+    setBonusClaiming(true)
+    // Open Telegram channel
+    window.open('https://t.me/ychion_ru', '_blank')
+    try {
+      const res = await fetch('/api/auth/claim-telegram-bonus', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        // Refresh user data to update generationsLeft and hide the card
+        await refreshAuth()
+      }
+    } catch {
+      // Silently fail — bonus is non-critical
+    } finally {
+      setBonusClaiming(false)
+    }
+  }, [bonusClaiming, refreshAuth])
 
   // Presentations
   const { data: presentationsList = [], isLoading: presentationsLoading } = useQuery({
@@ -159,7 +181,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Stats Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className={`grid grid-cols-1 ${user.telegramBonusClaimed ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-4 mb-10`}>
           {/* Generations with progress bar */}
           <div
             className={`stat-card flex flex-col gap-3 px-5 py-4 rounded-2xl transition-all ${isLimitExhausted && isPaidPlan && subStatus === 'active' ? 'cursor-pointer group hover:shadow-lg hover:border-purple-200' : ''}`}
@@ -212,20 +234,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Gift Certificate - Special card */}
-          <div className="stat-card stat-card-special flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer group">
-            <div className="p-2 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors relative">
-              <GiftIcon className="w-5 h-5 text-emerald-600" />
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
+          {/* Telegram Bonus Card - hidden once claimed */}
+          {!user.telegramBonusClaimed && (
+            <div
+              className="stat-card stat-card-special flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer group"
+              onClick={handleClaimTelegramBonus}
+            >
+              <div className="p-2 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors relative">
+                <GiftIcon className="w-5 h-5 text-emerald-600" />
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs text-emerald-600 uppercase tracking-wider font-semibold">Дополнительный</span>
+                <p className="text-base font-bold text-emerald-700">бонус</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-xs text-emerald-600 uppercase tracking-wider font-semibold">Дополнительный</span>
-              <p className="text-base font-bold text-emerald-700">бонус</p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* past_due warning banner */}

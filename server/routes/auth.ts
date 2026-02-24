@@ -82,6 +82,7 @@ router.get('/me', async (req: Request, res: Response) => {
       role: users.role,
       generationsLeft: users.generationsLeft,
       subscriptionPlan: users.subscriptionPlan,
+      telegramBonusClaimed: users.telegramBonusClaimed,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -629,6 +630,47 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
   logLoginSuccess(req, user.id, user.email, 'email')
 
   return res.status(200).json({ ok: true })
+})
+
+// ==================== POST /api/auth/claim-telegram-bonus ====================
+/**
+ * Claim a one-time bonus generation for visiting the Telegram channel.
+ * Awards 1 extra generation. Can only be claimed once per account.
+ */
+router.post('/claim-telegram-bonus', async (req: Request, res: Response) => {
+  const token = getTokenFromCookie(req, ACCESS_TOKEN_COOKIE)
+  if (!token) throw ApiError.unauthorized('Not authenticated')
+
+  const payload = verifyAccessToken(token)
+  if (!payload) throw ApiError.unauthorized('Invalid or expired token')
+
+  // Atomically claim: only update if not yet claimed
+  const [updated] = await db
+    .update(users)
+    .set({
+      telegramBonusClaimed: true,
+      generationsLeft: sql`${users.generationsLeft} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(users.id, payload.sub),
+        eq(users.telegramBonusClaimed, false),
+        isNull(users.deletedAt),
+      )
+    )
+    .returning({ id: users.id, generationsLeft: users.generationsLeft })
+
+  if (!updated) {
+    // Already claimed or user not found
+    return res.status(200).json({ ok: true, alreadyClaimed: true })
+  }
+
+  return res.status(200).json({
+    ok: true,
+    alreadyClaimed: false,
+    generationsLeft: updated.generationsLeft,
+  })
 })
 
 export default router

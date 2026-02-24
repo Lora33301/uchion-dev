@@ -35,6 +35,7 @@ export interface User {
   name?: string | null
   role: 'user' | 'admin'
   generationsLeft: number
+  telegramBonusClaimed?: boolean
   subscription?: UserSubscription
   limits?: PlanLimits
   usage?: PlanUsage
