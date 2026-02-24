@@ -145,7 +145,11 @@ function PlanSelectorCard({ planId, isSelected, isCurrent, isPopular, onSelect }
       )}
 
       {/* Generation count */}
-      <span className={`text-2xl font-black leading-none ${isSelected ? 'text-[#8C52FF]' : 'text-slate-800'}`}>
+      <span className={`text-2xl font-black leading-none bg-clip-text text-transparent ${
+        isSelected
+          ? 'bg-gradient-to-b from-[#8C52FF] to-[#A855F7]'
+          : 'bg-gradient-to-b from-[#8C52FF]/70 to-[#A855F7]/70'
+      }`}>
         {generations}
       </span>
       <span className="text-[11px] text-slate-500 mt-0.5">генераций</span>
@@ -687,7 +691,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
                   </div>
 
                   {/* Details panel - MOBILE ONLY (shown below cards on mobile) */}
-                  <div className="sm:hidden mb-4 p-4 bg-slate-50/80 border border-slate-100 rounded-xl">
+                  <div className="sm:hidden mb-4 p-4 border border-slate-200 rounded-xl">
                     <DetailsPanelContent planId={selectedPlan} />
                   </div>
 
@@ -716,17 +720,17 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
                   <button
                     onClick={() => handleSelectPlan(selectedPlan)}
                     disabled={isCurrentSelected || !bothAgreed || loadingPlan !== null}
-                    className={`w-full mt-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                    className={`w-full mt-4 py-3 rounded-full text-sm font-semibold transition-all duration-200 border ${
                       isCurrentSelected
-                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 cursor-default'
                         : !bothAgreed
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-[#8C52FF] to-violet-500 text-white hover:opacity-90 hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]'
+                          ? 'bg-white text-slate-400 border-slate-200 cursor-not-allowed'
+                          : 'bg-white text-[#8C52FF] border-[#8C52FF] hover:bg-[#8C52FF]/5 hover:shadow-md hover:shadow-purple-200/30 active:scale-[0.98]'
                     }`}
                   >
                     {loadingPlan ? (
                       <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                        <span className="animate-spin rounded-full h-4 w-4 border-2 border-[#8C52FF]/30 border-t-[#8C52FF]" />
                         Загрузка...
                       </span>
                     ) : isCurrentSelected ? (
@@ -748,7 +752,7 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
                 </div>
 
                 {/* Right column: details panel - DESKTOP ONLY */}
-                <div className="hidden sm:block p-5 bg-slate-50/80 border border-slate-100 rounded-xl self-start">
+                <div className="hidden sm:block p-5 border border-slate-200 rounded-xl self-start">
                   <DetailsPanelContent planId={selectedPlan} />
                 </div>
               </div>
