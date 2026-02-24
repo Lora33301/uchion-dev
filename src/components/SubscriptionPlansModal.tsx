@@ -95,132 +95,101 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   ],
 }
 
-// ==================== PLAN CARD ====================
+// ==================== PLAN GENERATION COUNTS ====================
 
-interface PlanCardProps {
+const PLAN_GENERATIONS: Record<SubscriptionPlanId, number> = {
+  free: 5,
+  starter: 25,
+  teacher: 60,
+  expert: 120,
+}
+
+// ==================== COMPACT PLAN SELECTOR CARD ====================
+
+interface PlanSelectorCardProps {
   planId: SubscriptionPlanId
+  isSelected: boolean
   isCurrent: boolean
-  isLoading: boolean
-  isPopular?: boolean
-  disabled: boolean
+  isPopular: boolean
   onSelect: (planId: SubscriptionPlanId) => void
 }
 
-function PlanCard({ planId, isCurrent, isLoading, isPopular, disabled, onSelect }: PlanCardProps) {
+function PlanSelectorCard({ planId, isSelected, isCurrent, isPopular, onSelect }: PlanSelectorCardProps) {
   const plan = SUBSCRIPTION_PLANS[planId]
-  const features = PLAN_FEATURES[planId]
-
-  const cardStyles: Record<string, {
-    border: string
-    glow: string
-    bg: string
-    priceBg: string
-    btnGradient: string
-  }> = {
-    starter: {
-      border: isCurrent ? 'border-[#8C52FF]/60' : 'border-white/40',
-      glow: isCurrent ? 'shadow-[0_0_24px_rgba(140,82,255,0.2)]' : '',
-      bg: 'bg-white/60',
-      priceBg: 'from-[#8C52FF]/5 to-transparent',
-      btnGradient: 'from-[#8C52FF] to-[#A16BFF]',
-    },
-    teacher: {
-      border: isCurrent ? 'border-violet-400/60' : 'border-white/40',
-      glow: isCurrent ? 'shadow-[0_0_24px_rgba(139,92,246,0.25)]' : '',
-      bg: 'bg-white/60',
-      priceBg: 'from-violet-500/5 to-transparent',
-      btnGradient: 'from-violet-500 to-purple-500',
-    },
-    expert: {
-      border: isCurrent ? 'border-indigo-400/60' : 'border-white/40',
-      glow: isCurrent ? 'shadow-[0_0_24px_rgba(99,102,241,0.25)]' : '',
-      bg: 'bg-white/60',
-      priceBg: 'from-indigo-500/5 to-transparent',
-      btnGradient: 'from-indigo-500 to-violet-500',
-    },
-  }
-
-  const style = cardStyles[planId] || cardStyles.starter
+  const generations = PLAN_GENERATIONS[planId]
 
   return (
-    <div
-      className={`relative flex flex-col h-full rounded-2xl border backdrop-blur-md transition-all duration-300 overflow-hidden ${style.bg} ${style.border} ${style.glow} ${
-        !isCurrent ? 'hover:border-[#8C52FF]/30 hover:shadow-[0_8px_32px_rgba(140,82,255,0.12)]' : ''
+    <button
+      onClick={() => onSelect(planId)}
+      className={`relative flex flex-col items-center py-3.5 px-2 rounded-2xl border-2 transition-all duration-200 ${
+        isSelected
+          ? 'border-[#8C52FF] bg-gradient-to-b from-[#8C52FF]/10 to-[#A855F7]/5 shadow-[0_0_16px_rgba(140,82,255,0.25)]'
+          : 'border-slate-200 bg-white hover:border-[#8C52FF]/40 hover:shadow-[0_0_12px_rgba(140,82,255,0.1)]'
       }`}
     >
       {/* Popular badge */}
       {isPopular && !isCurrent && (
-        <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[#8C52FF] to-violet-500 text-white text-center text-[11px] font-bold py-1 tracking-wide uppercase">
-          Популярный выбор
-        </div>
-      )}
-
-      {/* Current badge */}
-      {isCurrent && (
-        <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center text-[11px] font-bold py-1 tracking-wide uppercase">
-          Ваш текущий план
-        </div>
-      )}
-
-      <div className={`p-5 flex flex-col flex-1 ${(isPopular && !isCurrent) || isCurrent ? 'pt-9' : ''}`}>
-        {/* Plan name + price */}
-        <div className={`rounded-xl p-3 mb-4 bg-gradient-to-b ${style.priceBg}`}>
-          <div className="flex items-center gap-2 mb-1">
-            {planId === 'expert' && <CrownIcon className="w-4 h-4 text-amber-500" />}
-            <p className="text-sm font-semibold text-slate-500">{plan.name}</p>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-black text-slate-800">{plan.price}</span>
-            <span className="text-base font-semibold text-slate-500">{'\u20BD'}/мес</span>
-          </div>
-        </div>
-
-        {/* Features */}
-        <ul className="flex flex-col gap-2 mb-5 flex-1">
-          {features.map((f, i) => (
-            <li key={i} className={`flex items-start gap-2 text-[13px] leading-snug ${
-              f.available ? (f.highlight ? 'text-[#8C52FF] font-medium' : 'text-slate-700') : 'text-slate-400'
-            }`}>
-              <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center mt-0.5 ${
-                f.available ? 'bg-[#8C52FF]/10' : 'bg-slate-100'
-              }`}>
-                {f.available ? (
-                  <CheckIcon className="w-2.5 h-2.5 text-[#8C52FF]" />
-                ) : (
-                  <XMarkIcon className="w-2.5 h-2.5 text-slate-300" />
-                )}
-              </span>
-              {f.text}
-            </li>
-          ))}
-        </ul>
-
-        {/* Action button */}
-        <button
-          onClick={() => onSelect(planId)}
-          disabled={isCurrent || isLoading || disabled}
-          className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-            isCurrent
-              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
-              : disabled
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                : `bg-gradient-to-r ${style.btnGradient} text-white hover:opacity-90 hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]`
-          }`}
+        <span
+          className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 text-white text-[10px] font-bold rounded-full leading-none whitespace-nowrap shadow-[0_0_8px_rgba(140,82,255,0.4)]"
+          style={{ background: 'linear-gradient(135deg, #8C52FF, #A855F7)' }}
         >
-          {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-              Загрузка...
+          Популярный
+        </span>
+      )}
+
+      {/* Current plan badge */}
+      {isCurrent && (
+        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full leading-none whitespace-nowrap">
+          Текущий
+        </span>
+      )}
+
+      {/* Generation count */}
+      <span className={`text-2xl font-black leading-none ${isSelected ? 'text-[#8C52FF]' : 'text-slate-800'}`}>
+        {generations}
+      </span>
+      <span className="text-[11px] text-slate-500 mt-0.5">генераций</span>
+
+      {/* Plan name */}
+      <span className={`text-xs font-semibold mt-1.5 ${isSelected ? 'text-[#8C52FF]' : 'text-slate-600'}`}>
+        {planId === 'expert' && <CrownIcon className="w-3 h-3 text-amber-500 inline mr-0.5 -mt-0.5" />}
+        {plan.name}
+      </span>
+
+      {/* Price */}
+      <span className={`text-sm font-bold mt-0.5 ${isSelected ? 'text-[#8C52FF]' : 'text-slate-700'}`}>
+        {plan.price} {'\u20BD'}/мес
+      </span>
+    </button>
+  )
+}
+
+// ==================== DETAILS PANEL ====================
+
+function DetailsPanelContent({ planId }: { planId: SubscriptionPlanId }) {
+  const features = PLAN_FEATURES[planId]
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-slate-700 mb-3">Вам будет доступно:</p>
+      <ul className="flex flex-col gap-2">
+        {features.map((f, i) => (
+          <li key={i} className={`flex items-start gap-2 text-[13px] leading-snug ${
+            f.available ? (f.highlight ? 'text-[#8C52FF] font-medium' : 'text-slate-700') : 'text-slate-400'
+          }`}>
+            <span className={`flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center mt-0.5 ${
+              f.available ? 'bg-[#8C52FF]/10' : 'bg-slate-100'
+            }`}>
+              {f.available ? (
+                <CheckIcon className="w-2.5 h-2.5 text-[#8C52FF]" />
+              ) : (
+                <XMarkIcon className="w-2.5 h-2.5 text-slate-300" />
+              )}
             </span>
-          ) : isCurrent ? (
-            'Активен'
-          ) : disabled ? (
-            'Примите условия'
-          ) : (
-            'Оформить'
-          )}
-        </button>
-      </div>
+            {f.text}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -423,8 +392,8 @@ interface AgreementCheckboxesProps {
 
 function AgreementCheckboxes({ agreedTerms, agreedRecurring, onToggleTerms, onToggleRecurring }: AgreementCheckboxesProps) {
   return (
-    <div className="flex flex-col gap-3 p-4 rounded-xl bg-slate-50/80 border border-slate-100">
-      <label className="flex items-start gap-3 cursor-pointer group">
+    <div className="flex flex-col gap-2.5">
+      <label className="flex items-start gap-2.5 cursor-pointer group">
         <div className="relative flex-shrink-0 mt-0.5">
           <input
             type="checkbox"
@@ -432,28 +401,28 @@ function AgreementCheckboxes({ agreedTerms, agreedRecurring, onToggleTerms, onTo
             onChange={onToggleTerms}
             className="sr-only peer"
           />
-          <div className={`w-5 h-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
+          <div className={`w-4.5 h-4.5 w-[18px] h-[18px] rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
             agreedTerms
               ? 'bg-[#8C52FF] border-[#8C52FF]'
               : 'border-slate-300 group-hover:border-[#8C52FF]/50'
           }`}>
-            {agreedTerms && <CheckIcon className="w-3 h-3 text-white" />}
+            {agreedTerms && <CheckIcon className="w-2.5 h-2.5 text-white" />}
           </div>
         </div>
-        <span className="text-[13px] text-slate-600 leading-snug select-none">
+        <span className="text-[12px] text-slate-500 leading-snug select-none">
           Я принимаю{' '}
-          <a href="#" onClick={(e) => e.preventDefault()} className="text-[#8C52FF] hover:underline">
+          <a href="/agreement" className="text-[#8C52FF] hover:underline">
             пользовательское соглашение
           </a>
           , с{' '}
-          <a href="#" onClick={(e) => e.preventDefault()} className="text-[#8C52FF] hover:underline">
+          <a href="/privacy" className="text-[#8C52FF] hover:underline">
             политикой персональных данных
           </a>
           {' '}ознакомлен.
         </span>
       </label>
 
-      <label className="flex items-start gap-3 cursor-pointer group">
+      <label className="flex items-start gap-2.5 cursor-pointer group">
         <div className="relative flex-shrink-0 mt-0.5">
           <input
             type="checkbox"
@@ -461,15 +430,15 @@ function AgreementCheckboxes({ agreedTerms, agreedRecurring, onToggleTerms, onTo
             onChange={onToggleRecurring}
             className="sr-only peer"
           />
-          <div className={`w-5 h-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
+          <div className={`w-[18px] h-[18px] rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
             agreedRecurring
               ? 'bg-[#8C52FF] border-[#8C52FF]'
               : 'border-slate-300 group-hover:border-[#8C52FF]/50'
           }`}>
-            {agreedRecurring && <CheckIcon className="w-3 h-3 text-white" />}
+            {agreedRecurring && <CheckIcon className="w-2.5 h-2.5 text-white" />}
           </div>
         </div>
-        <span className="text-[13px] text-slate-600 leading-snug select-none">
+        <span className="text-[12px] text-slate-500 leading-snug select-none">
           Даю согласие на автоматическое списание денежных средств для оплаты подписки (каждого последующего Расчетного периода).
         </span>
       </label>
@@ -502,12 +471,17 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
   const subStatus = subscription?.status ?? 'active'
   const isPaid = currentPlan !== 'free'
 
+  // Default selectedPlan to current plan (if paid) or teacher (popular)
+  const defaultPlan = isPaid && currentPlan !== 'free' ? currentPlan : 'teacher'
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(defaultPlan)
+
   // Show topup tab only if user has active paid subscription and ran out of generations
   const showTopupTab = isPaid && subStatus === 'active' && (user?.generationsLeft ?? 0) <= 0
 
   const bothAgreed = agreedTerms && agreedRecurring
+  const isCurrentSelected = currentPlan === selectedPlan
 
-  // Sync tab when initialTab changes (e.g. opened from different triggers)
+  // Sync tab and reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       // If topup tab requested but not allowed, fall back to subscription
@@ -519,8 +493,10 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
       setCancelSuccess(null)
       setAgreedTerms(false)
       setAgreedRecurring(false)
+      // Reset selected plan
+      setSelectedPlan(isPaid && currentPlan !== 'free' ? currentPlan : 'teacher')
     }
-  }, [isOpen, initialTab, showTopupTab])
+  }, [isOpen, initialTab, showTopupTab, isPaid, currentPlan])
 
   // Escape key + body scroll lock
   useEffect(() => {
@@ -691,35 +667,91 @@ export default function SubscriptionPlansModal({ isOpen, onClose, initialTab = '
                 </div>
               )}
 
-              {/* Plan cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-                {PAID_PLANS.map((planId) => (
-                  <div key={planId} className="flex">
-                    <PlanCard
-                      planId={planId}
-                      isCurrent={currentPlan === planId}
-                      isLoading={loadingPlan === planId}
-                      isPopular={planId === 'teacher'}
-                      disabled={!bothAgreed && currentPlan !== planId}
-                      onSelect={handleSelectPlan}
-                    />
+              {/* Two-column layout: left (selector + controls) | right (details) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                {/* Left column: plan selector + info + checkboxes + button */}
+                <div className="flex flex-col">
+                  {/* Plan selector cards */}
+                  <div className="grid grid-cols-3 gap-2.5 mb-4">
+                    {PAID_PLANS.map((planId) => (
+                      <div key={planId}>
+                        <PlanSelectorCard
+                          planId={planId}
+                          isSelected={selectedPlan === planId}
+                          isCurrent={currentPlan === planId}
+                          isPopular={planId === 'teacher'}
+                          onSelect={setSelectedPlan}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {subscribeError && (
-                <div className="mb-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-red-600 text-sm text-center backdrop-blur-sm">
-                  {subscribeError}
+                  {/* Details panel - MOBILE ONLY (shown below cards on mobile) */}
+                  <div className="sm:hidden mb-4 p-4 bg-slate-50/80 border border-slate-100 rounded-xl">
+                    <DetailsPanelContent planId={selectedPlan} />
+                  </div>
+
+                  {/* Info bullets */}
+                  <div className="flex flex-col gap-1.5 mb-4 text-[12px] text-slate-400">
+                    <p>Оплата списывается ежемесячно</p>
+                    <p>Можете отменить в любой момент</p>
+                    <p>Доступ сразу после оплаты</p>
+                  </div>
+
+                  {/* Agreement checkboxes */}
+                  <AgreementCheckboxes
+                    agreedTerms={agreedTerms}
+                    agreedRecurring={agreedRecurring}
+                    onToggleTerms={() => setAgreedTerms((v) => !v)}
+                    onToggleRecurring={() => setAgreedRecurring((v) => !v)}
+                  />
+
+                  {subscribeError && (
+                    <div className="mt-3 p-3 bg-red-50/80 border border-red-200 rounded-xl text-red-600 text-sm text-center backdrop-blur-sm">
+                      {subscribeError}
+                    </div>
+                  )}
+
+                  {/* Action button */}
+                  <button
+                    onClick={() => handleSelectPlan(selectedPlan)}
+                    disabled={isCurrentSelected || !bothAgreed || loadingPlan !== null}
+                    className={`w-full mt-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      isCurrentSelected
+                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                        : !bothAgreed
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-[#8C52FF] to-violet-500 text-white hover:opacity-90 hover:shadow-lg hover:shadow-purple-300/30 active:scale-[0.98]'
+                    }`}
+                  >
+                    {loadingPlan ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                        Загрузка...
+                      </span>
+                    ) : isCurrentSelected ? (
+                      'Активен'
+                    ) : !bothAgreed ? (
+                      'Примите условия'
+                    ) : (
+                      `Продолжить — ${SUBSCRIPTION_PLANS[selectedPlan].price} \u20BD/мес`
+                    )}
+                  </button>
+
+                  {/* Close text button */}
+                  <button
+                    onClick={onClose}
+                    className="mt-2 text-sm text-slate-400 hover:text-slate-600 transition-colors text-center"
+                  >
+                    Отмена
+                  </button>
                 </div>
-              )}
 
-              {/* Agreement checkboxes */}
-              <AgreementCheckboxes
-                agreedTerms={agreedTerms}
-                agreedRecurring={agreedRecurring}
-                onToggleTerms={() => setAgreedTerms((v) => !v)}
-                onToggleRecurring={() => setAgreedRecurring((v) => !v)}
-              />
+                {/* Right column: details panel - DESKTOP ONLY */}
+                <div className="hidden sm:block p-5 bg-slate-50/80 border border-slate-100 rounded-xl self-start">
+                  <DetailsPanelContent planId={selectedPlan} />
+                </div>
+              </div>
 
               {/* Cancel subscription */}
               {isPaid && subStatus !== 'cancelled' && (
