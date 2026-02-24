@@ -248,8 +248,8 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-xs text-emerald-600 uppercase tracking-wider font-semibold">Дополнительный</span>
-                <p className="text-base font-bold text-emerald-700">бонус</p>
+                <span className="text-xs text-emerald-600 uppercase tracking-wider font-semibold">+1 генерация</span>
+                <p className="text-sm font-bold text-emerald-700">Подпишись на ТГ-канал</p>
               </div>
             </div>
           )}
