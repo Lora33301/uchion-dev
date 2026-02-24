@@ -18,7 +18,6 @@ import healthRoutes from './server/routes/health.js'
 import adminRoutes from './server/routes/admin/index.js'
 import telegramRoutes from './server/routes/telegram.js'
 import billingRoutes from './server/routes/billing.js'
-import { initGenerationQueue, closeGenerationQueue } from './server/lib/generation-queue.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -230,9 +229,6 @@ import { runMigrations } from './db/index.js'
 async function start() {
   await runMigrations()
 
-  // Initialize BullMQ generation queue (requires Redis)
-  initGenerationQueue()
-
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
@@ -248,10 +244,8 @@ async function start() {
     }).catch(() => { /* ignore */ })
   })
 
-  // Graceful shutdown — close browser pool + generation queue
+  // Graceful shutdown — close browser pool
   const shutdown = async () => {
-    console.log('[Shutdown] Closing generation queue...')
-    await closeGenerationQueue().catch(e => console.error('[Shutdown] Queue close error:', e))
     console.log('[Shutdown] Closing browser pool...')
     const { closeBrowserPool } = await import('./api/_lib/browser-pool.js')
     await closeBrowserPool()
