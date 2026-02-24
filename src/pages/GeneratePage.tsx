@@ -216,7 +216,7 @@ export default function GeneratePage() {
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
-      slideCount: 18,
+      slideCount: 12,
     }
   })
 
@@ -372,7 +372,7 @@ export default function GeneratePage() {
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
-      slideCount: 18,
+      slideCount: 12,
     })
   }
 
@@ -436,7 +436,7 @@ export default function GeneratePage() {
 
     // Check plan allows presentations
     if (!canGeneratePresentation(user)) {
-      setErrorText('Презентации доступны начиная с тарифа Методист.')
+      setErrorText('Презентации недоступны на вашем тарифе.')
       setErrorCode('PLAN_LIMIT')
       setShowBuyModal(true)
       return

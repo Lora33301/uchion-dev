@@ -70,7 +70,8 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
     { text: 'Стили оформления PDF', available: true },
     { text: 'Редактирование листов', available: true },
     { text: '5 папок, до 20 листов', available: true },
-    { text: 'Презентации', available: false },
+    { text: 'Презентации (12/18 сл.)', available: true },
+    { text: 'Хранилище: 15 презентаций', available: true },
   ],
   teacher: [
     { text: '60 генераций в месяц', available: true, highlight: true },
@@ -79,7 +80,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
     { text: 'Стили оформления PDF', available: true },
     { text: 'Редактирование листов', available: true },
     { text: '10 папок, до 50 листов', available: true },
-    { text: 'Презентации (12 слайдов)', available: true },
+    { text: 'Презентации (12/18 сл.)', available: true },
     { text: 'Хранилище: 30 презентаций', available: true },
   ],
   expert: [

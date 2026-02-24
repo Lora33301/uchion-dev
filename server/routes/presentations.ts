@@ -69,7 +69,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     return res.status(403).json({
       status: 'error',
       code: 'PLAN_LIMIT',
-      message: 'Презентации доступны начиная с тарифа Методист.',
+      message: 'Презентации недоступны на вашем тарифе.',
     })
   }
 

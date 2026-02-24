@@ -110,7 +110,7 @@ export default function GeneratePresentationPage() {
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
-      slideCount: 18,
+      slideCount: 12,
     }
   })
 
@@ -199,7 +199,7 @@ export default function GeneratePresentationPage() {
     // Check plan: presentations require teacher/expert
     if (!canGeneratePresentation(user)) {
       setErrorCode('PLAN_REQUIRED')
-      setErrorText('Генерация презентаций доступна на тарифах Методист и Эксперт.')
+      setErrorText('Генерация презентаций недоступна на вашем тарифе.')
       return
     }
 
@@ -240,7 +240,7 @@ export default function GeneratePresentationPage() {
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
-      slideCount: 18,
+      slideCount: 12,
     })
   }
 
@@ -423,7 +423,7 @@ export default function GeneratePresentationPage() {
                         <div className={`text-sm font-semibold ${allowed ? 'text-slate-900' : 'text-slate-400'}`}>{sc.label}</div>
                         <div className={`text-xs ${allowed ? 'text-slate-500' : 'text-slate-400'}`}>{sc.description}</div>
                         {!allowed && (
-                          <div className="text-xs text-purple-400 mt-0.5">Тариф Эксперт</div>
+                          <div className="text-xs text-purple-400 mt-0.5">Нужен тариф выше</div>
                         )}
                       </button>
                     )
