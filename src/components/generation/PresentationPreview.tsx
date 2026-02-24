@@ -5,7 +5,7 @@ interface GeneratedPresentation {
   id: string
   title: string
   pptxBase64: string
-  pdfBase64: string
+
   slideCount: number
   structure: PresentationStructure
 }
@@ -14,7 +14,7 @@ interface PresentationPreviewProps {
   presentation: GeneratedPresentation
   themePreset: 'professional' | 'kids' | 'school' | undefined
   onDownloadPptx: () => void
-  onDownloadPdf: () => void
+
   onCreateNew: () => void
 }
 
@@ -22,7 +22,6 @@ export default function PresentationPreview({
   presentation,
   themePreset,
   onDownloadPptx,
-  onDownloadPdf,
   onCreateNew,
 }: PresentationPreviewProps) {
   return (
@@ -43,16 +42,6 @@ export default function PresentationPreview({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               Скачать .pptx
-            </button>
-            <button
-              onClick={onDownloadPdf}
-              disabled={!presentation.pdfBase64}
-              className="inline-flex h-10 px-5 items-center justify-center rounded-xl bg-red-500/80 hover:bg-red-500/90 text-sm font-semibold text-white shadow-md shadow-red-400/20 transition-all hover:shadow-red-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Скачать PDF
             </button>
             <button
               onClick={onCreateNew}

@@ -558,7 +558,7 @@ export default function GeneratePresentationPage() {
             <div className="w-full text-left">
               <div className="mb-2 flex justify-between items-end text-sm font-medium">
                 <span className="text-slate-600">Готово: {Math.round(progress)}%</span>
-                <span className="text-xs text-slate-400">Генерация занимает 1-2 минуты</span>
+                <span className="text-xs text-slate-400">Генерация длится в среднем 2-3 минуты</span>
               </div>
               <div className="h-4 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner">
                 <div

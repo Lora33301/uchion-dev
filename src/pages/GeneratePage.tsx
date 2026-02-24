@@ -240,11 +240,6 @@ export default function GeneratePage() {
     downloadBase64File(generatedPresentation.pptxBase64, filename, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
   }
 
-  const handleDownloadPdf = () => {
-    if (!generatedPresentation?.pdfBase64) return
-    const filename = `${generatedPresentation.title.replace(/[^a-zа-яё0-9\s]/gi, '_')}.pdf`
-    downloadBase64File(generatedPresentation.pdfBase64, filename, 'application/pdf')
-  }
 
   const handleCreateNewPresentation = () => {
     setGeneratedPresentation(null)
@@ -450,7 +445,7 @@ export default function GeneratePage() {
                 presentation={generatedPresentation}
                 themePreset={presentationForm.getValues('themePreset')}
                 onDownloadPptx={handleDownloadPptx}
-                onDownloadPdf={handleDownloadPdf}
+
                 onCreateNew={handleCreateNewPresentation}
               />
             )}
