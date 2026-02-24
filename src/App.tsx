@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import CookieConsent from './components/CookieConsent'
 import Footer from './components/Footer'
@@ -27,6 +27,15 @@ const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminPaymentsPage'))
 const AdminAICostsPage = lazy(() => import('./pages/admin/AdminAICostsPage'))
 const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'))
 
+/** Scroll to top on route change (React Router v6 does not do this automatically) */
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  return null
+}
+
 function AdminFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -41,7 +50,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <CookieConsent />
+      <ScrollToTop />
       <div className="flex-1">
       <Routes>
         <Route path="/" element={<GeneratePage />} />
@@ -76,6 +85,7 @@ export default function App() {
       </Routes>
       </div>
       {!isAdmin && <Footer />}
+      <CookieConsent />
     </div>
   )
 }
