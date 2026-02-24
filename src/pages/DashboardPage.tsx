@@ -181,7 +181,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Stats Cards Row */}
-        <div className={`grid grid-cols-1 ${user.telegramBonusClaimed ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-4 mb-10`}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           {/* Generations with progress bar */}
           <div
             className={`stat-card flex flex-col gap-3 px-5 py-4 rounded-2xl transition-all ${isLimitExhausted && isPaidPlan && subStatus === 'active' ? 'cursor-pointer group hover:shadow-lg hover:border-purple-200' : ''}`}
