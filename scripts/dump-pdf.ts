@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { buildPdf as buildServerPdf } from '../api/_lib/pdf.js'
+import { buildPdf as buildServerPdf } from '../api/_lib/pdf/index.js'
 import { buildWorksheetPdf as buildClientPdf } from '../src/lib/pdf-client.js'
 import type { Worksheet, GeneratePayload } from '../shared/types.js'
 

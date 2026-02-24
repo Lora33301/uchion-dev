@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { getAIProvider } from '../api/_lib/ai-provider.js'
-import { buildPdf } from '../api/_lib/pdf.js'
+import { buildPdf } from '../api/_lib/pdf/index.js'
 import { WorksheetSchema, type Subject } from '../shared/worksheet.js'
 
 // Force Dummy provider if not set (or use what's in .env)
