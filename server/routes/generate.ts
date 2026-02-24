@@ -15,6 +15,7 @@ import type { GeneratePayload, Worksheet } from '../../shared/types.js'
 import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchema } from '../../shared/worksheet.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
 import { calculateGenerationCost } from '../../api/_lib/generation/config/worksheet-formats.js'
+import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
 
 const router = Router()
 
@@ -163,12 +164,12 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const aiSessionId = crypto.randomUUID()
-    const worksheet = await withAIContext(
+    const worksheet = await generationLimiter(() => withAIContext(
       { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
       () => ai.generateWorksheet(generateParams as GeneratePayload, (percent) => {
         sendEvent({ type: 'progress', percent })
       })
-    )
+    ))
 
     sendEvent({ type: 'progress', percent: 97 })
 
@@ -417,7 +418,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
 
     const ai = getAIProvider()
     const aiSessionId = crypto.randomUUID()
-    const result = await withAIContext(
+    const result = await generationLimiter(() => withAIContext(
       { sessionId: aiSessionId, userId, subject: input.context.subject, grade: input.context.grade },
       () => ai.regenerateTask({
         subject: input.context.subject,
@@ -428,7 +429,7 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
         isTest: input.isTest,
         isPaid,
       })
-    )
+    ))
 
     return res.json({
       status: 'ok',

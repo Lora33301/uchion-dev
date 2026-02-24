@@ -6,8 +6,13 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Load Inter font as base64 for embedding in HTML
+// Module-level cache: fonts are loaded once and reused across all PDF requests
+let cachedFonts: { regular: string; bold: string } | null | undefined = undefined
+
+// Load Inter font as base64 for embedding in HTML (cached after first call)
 export function loadFontAsBase64(): { regular: string; bold: string } | null {
+  if (cachedFonts !== undefined) return cachedFonts
+
   const possiblePaths = [
     {
       regular: path.join(process.cwd(), 'public/fonts/Inter-Regular.ttf'),
@@ -26,14 +31,16 @@ export function loadFontAsBase64(): { regular: string; bold: string } | null {
         const boldBuffer = fs.existsSync(paths.bold)
           ? fs.readFileSync(paths.bold)
           : regularBuffer
-        return {
+        cachedFonts = {
           regular: regularBuffer.toString('base64'),
           bold: boldBuffer.toString('base64'),
         }
+        return cachedFonts
       }
     } catch (e) {
       // Continue to next path
     }
   }
+  cachedFonts = null
   return null
 }

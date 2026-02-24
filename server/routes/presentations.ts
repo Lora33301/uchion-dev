@@ -13,6 +13,7 @@ import { withAuth } from '../middleware/auth.js'
 import { checkGenerateRateLimit } from '../middleware/rate-limit.js'
 import type { AuthenticatedRequest } from '../types.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
+import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
 
 const router = Router()
 
@@ -152,7 +153,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     console.log(`[API] Using ${claudeProvider ? 'Claude' : 'OpenAI'} provider for presentation generation`)
 
     const aiSessionId = crypto.randomUUID()
-    const structure = await withAIContext(
+    const structure = await generationLimiter(() => withAIContext(
       { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
       () => provider.generatePresentation({
         subject: input.subject,
@@ -165,7 +166,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
       }, (percent) => {
         sendEvent({ type: 'progress', percent })
       })
-    )
+    ))
 
     sendEvent({ type: 'progress', percent: 80 })
 

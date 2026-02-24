@@ -35,6 +35,5 @@ export {
   getPKCECookie,
 } from './cookies.js'
 
-// Middleware
-export { withAuth, withAdminAuth } from './middleware.js'
-export type { AuthUser, AuthenticatedHandler } from './middleware.js'
+// Middleware (use server/middleware/auth.ts for Express middleware)
+// Legacy: api/_lib/auth/middleware.ts removed — all auth middleware lives in server/middleware/auth.ts

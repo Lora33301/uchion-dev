@@ -109,3 +109,47 @@ export function withAdminAuth(
     return await handler(req, res)
   })
 }
+
+/**
+ * Express middleware that requires admin auth.
+ * Use with router.use() to protect all routes in a router.
+ * Unlike withAdminAuth (which wraps a handler), this calls next() on success.
+ */
+export async function requireAdmin(req: Request, res: Response, next: Function) {
+  const token = getTokenFromCookie(req, ACCESS_TOKEN_COOKIE)
+
+  if (!token) {
+    throw ApiError.unauthorized('Authentication required')
+  }
+
+  const payload = verifyAccessToken(token)
+  if (!payload) {
+    throw ApiError.unauthorized('Invalid or expired token')
+  }
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      hasPaidAccess: users.hasPaidAccess,
+    })
+    .from(users)
+    .where(and(
+      eq(users.id, payload.sub),
+      isNull(users.deletedAt)
+    ))
+    .limit(1)
+
+  if (!user) {
+    throw ApiError.unauthorized('User not found or deactivated')
+  }
+
+  if (user.role !== 'admin') {
+    throw ApiError.forbidden('Admin access required')
+  }
+
+  ;(req as AuthenticatedRequest).user = user as AuthUser
+  next()
+}

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireAdmin } from '../../middleware/auth.js'
 import statsRouter from './stats.js'
 import usersRouter from './users.js'
 import generationsRouter, { generationLogsRouter, stuckGenerationsRouter } from './generations.js'
@@ -8,6 +9,11 @@ import settingsRouter from './settings.js'
 import aiCostsRouter from './ai-costs.js'
 
 const router = Router()
+
+// Global admin auth: all /api/admin/* routes require admin role.
+// Individual routes still use withAdminAuth for backwards compatibility,
+// but this ensures no route is accidentally left unprotected.
+router.use(requireAdmin)
 
 router.use('/stats', statsRouter)
 router.use('/users', usersRouter)
