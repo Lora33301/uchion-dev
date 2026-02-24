@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import CookieConsent from './components/CookieConsent'
+import Footer from './components/Footer'
 import GeneratePage from './pages/GeneratePage'
 import GeneratePresentationPage from './pages/GeneratePresentationPage'
 import WorksheetPage from './pages/WorksheetPage'
@@ -34,9 +35,13 @@ function AdminFallback() {
 }
 
 export default function App() {
+  const location = useLocation()
+  const isAdmin = location.pathname.startsWith('/admin')
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <CookieConsent />
+      <div className="flex-1">
       <Routes>
         <Route path="/" element={<GeneratePage />} />
         <Route path="/presentations/generate" element={<GeneratePresentationPage />} />
@@ -65,6 +70,8 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </div>
+      {!isAdmin && <Footer />}
     </div>
   )
 }
