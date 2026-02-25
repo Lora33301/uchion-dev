@@ -182,9 +182,14 @@ export default function LoginPage() {
         <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-slate-900">
           Вход в аккаунт
         </h1>
-        <p className="mb-8 text-slate-500">
+        <p className="mb-2 text-slate-500">
           {step === 'email' ? 'Выберите способ входа' : `Код отправлен на ${email}`}
         </p>
+        {step === 'email' && (
+          <p className="mb-6 text-xs text-slate-400 text-center">
+            На текущий момент наблюдаются неполадки с авторизацией через mail.ru почту. Пожалуйста, воспроизводите вход через яндекс или другую почту, например gmail.
+          </p>
+        )}
 
         <div className="w-full rounded-[2rem] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-purple-100">
           {/* Error message */}
