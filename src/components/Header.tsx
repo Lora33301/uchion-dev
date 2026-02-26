@@ -72,21 +72,20 @@ export default function Header() {
             </Link>
 
             {/* Create button with dropdown */}
-            {user && (
             <div className="relative" ref={createRef}>
               <button
                 onClick={() => setCreateOpen(!createOpen)}
-                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-[#8C52FF] text-sm font-semibold rounded-xl transition-all hover:scale-105 bg-white/60 backdrop-blur-md hover:bg-white/80 border border-purple-200/60 shadow-[0_0_12px_rgba(140,82,255,0.12)]"
+                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-[#8C52FF] text-sm font-semibold rounded-xl transition-all hover:scale-105 bg-purple-50/80 hover:bg-purple-100 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]"
               >
                 <PlusIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Создать</span>
               </button>
               {createOpen && (
-                <div className="absolute top-full left-0 mt-2 w-56 rounded-2xl overflow-hidden z-50 bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(140,82,255,0.15),0_2px_8px_rgba(0,0,0,0.06)]">
+                <div className="absolute top-full left-0 mt-2 w-56 rounded-2xl overflow-hidden z-50 bg-purple-50/80 backdrop-blur-sm border border-purple-200/60 shadow-[0_8px_24px_rgba(140,82,255,0.15),0_2px_8px_rgba(0,0,0,0.06)]">
                   <Link
                     to="/"
                     onClick={() => setCreateOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-purple-100/40 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-purple-100 transition-colors"
                   >
                     <DocumentPlusIcon className="w-5 h-5 text-[#8C52FF]" />
                     <div>
@@ -97,7 +96,7 @@ export default function Header() {
                   <Link
                     to="/?tab=presentation"
                     onClick={() => setCreateOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-purple-100/40 transition-colors border-t border-white/30"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-purple-100 transition-colors border-t border-purple-200/40"
                   >
                     <PresentationPlusIcon className="w-5 h-5 text-[#8C52FF]" />
                     <div>
@@ -108,7 +107,6 @@ export default function Header() {
                 </div>
               )}
             </div>
-          )}
         </div>
 
         <div className="flex items-center gap-4">
