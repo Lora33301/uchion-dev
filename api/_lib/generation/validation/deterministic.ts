@@ -199,7 +199,7 @@ function validateSingleChoice(
   errors: ValidationError[],
   warnings: ValidationWarning[]
 ): void {
-  const options = task.options || []
+  const options = Array.isArray(task.options) ? task.options : []
   const correctIndex = task.correctIndex
 
   // correctIndex within bounds
@@ -248,8 +248,8 @@ function validateMultipleChoice(
   errors: ValidationError[],
   warnings: ValidationWarning[]
 ): void {
-  const options = task.options || []
-  const correctIndices = task.correctIndices || []
+  const options = Array.isArray(task.options) ? task.options : []
+  const correctIndices = Array.isArray(task.correctIndices) ? task.correctIndices : []
 
   // All indices within bounds
   for (const idx of correctIndices) {
@@ -327,9 +327,9 @@ function validateMatching(
   index: number,
   errors: ValidationError[]
 ): void {
-  const left = task.leftColumn || []
-  const right = task.rightColumn || []
-  const pairs = task.correctPairs || []
+  const left = Array.isArray(task.leftColumn) ? task.leftColumn : []
+  const right = Array.isArray(task.rightColumn) ? task.rightColumn : []
+  const pairs = Array.isArray(task.correctPairs) ? task.correctPairs : []
 
   // Column lengths must match
   if (left.length !== right.length) {
@@ -408,7 +408,7 @@ function validateFillBlank(
   errors: ValidationError[]
 ): void {
   const text = task.textWithBlanks || ''
-  const blanks = task.blanks || []
+  const blanks = Array.isArray(task.blanks) ? task.blanks : []
 
   // Find markers in text: ___(1)___, ___(2)___, etc.
   const markerRegex = /___\((\d+)\)___/g
@@ -510,6 +510,7 @@ function checkDuplicateOptions(
   errors: ValidationError[],
   fieldName = 'options'
 ): void {
+  if (!Array.isArray(items)) return
   const normalized = items.map(s => s.trim().toLowerCase())
   const seen = new Set<string>()
   for (let j = 0; j < normalized.length; j++) {
@@ -546,13 +547,13 @@ function gatherTaskText(task: GeneratedTask): string {
   const parts: string[] = []
 
   if (task.question) parts.push(task.question)
-  if (task.options) parts.push(...task.options)
+  if (Array.isArray(task.options)) parts.push(...task.options)
   if (task.correctAnswer) parts.push(task.correctAnswer)
   if (task.instruction) parts.push(task.instruction)
-  if (task.leftColumn) parts.push(...task.leftColumn)
-  if (task.rightColumn) parts.push(...task.rightColumn)
+  if (Array.isArray(task.leftColumn)) parts.push(...task.leftColumn)
+  if (Array.isArray(task.rightColumn)) parts.push(...task.rightColumn)
   if (task.textWithBlanks) parts.push(task.textWithBlanks)
-  if (task.blanks) parts.push(...task.blanks.map(b => b.correctAnswer))
+  if (Array.isArray(task.blanks)) parts.push(...task.blanks.map(b => b.correctAnswer))
 
   return parts.join(' ')
 }
