@@ -66,6 +66,12 @@ export default function GeneratePage() {
     searchParams.get('tab') === 'presentation' ? 'presentation' : 'worksheet'
   )
 
+  // Sync mode with URL param when navigating from other pages
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'presentation') setMode('presentation')
+  }, [searchParams])
+
   // Presentation result state
   const [generatedPresentation, setGeneratedPresentation] = useState<{
     id: string
