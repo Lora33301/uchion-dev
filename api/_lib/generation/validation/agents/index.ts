@@ -1,5 +1,6 @@
 import { verifyAnswers } from './answer-verifier.js'
 import { checkQualityAndContent } from './unified-checker.js'
+import { checkDifficulty } from './difficulty-checker.js'
 import { fixTask, MAX_FIXES_PER_GENERATION, type FixResult } from './task-fixer.js'
 import { isStemSubject } from '../../../ai-models.js'
 import type { TaskTypeId } from '../../config/task-types.js'
@@ -74,19 +75,16 @@ function collectTasksWithErrors(
   const errorMap = new Map<number, AgentIssue[]>()
 
   for (const agentResult of agentResults) {
+    // Skip difficulty-checker — it only logs warnings, does not trigger fixer
+    if (agentResult.agentName === 'difficulty-checker') continue
+
     for (const taskResult of agentResult.tasks) {
       if (taskResult.taskIndex < 0) continue
 
-      // Include errors + DIFFICULTY_MISMATCH warnings
-      const shouldFix = taskResult.status === 'error' ||
-        (taskResult.status === 'warning' && taskResult.issues.some(i => i.code === 'DIFFICULTY_MISMATCH'))
-
-      if (!shouldFix) continue
+      // Only include errors for fixing (no more DIFFICULTY_MISMATCH warnings from unified-checker)
+      if (taskResult.status !== 'error') continue
 
       for (const issue of taskResult.issues) {
-        // For warnings, only include DIFFICULTY_MISMATCH issues
-        if (taskResult.status === 'warning' && issue.code !== 'DIFFICULTY_MISMATCH') continue
-
         const existing = errorMap.get(taskResult.taskIndex) || []
         existing.push(issue)
         errorMap.set(taskResult.taskIndex, existing)
@@ -111,14 +109,14 @@ export async function runMultiAgentValidation(
   const start = Date.now()
   console.log(`[УчиОн] Multi-agent validation started for ${tasks.length} tasks`)
 
-  // 1. Run answer-verifier + unified quality/content checker in parallel
-  //    (was 3 agents, now 2 — quality-checker + content-checker merged)
-  const [answerResult, unifiedResult] = await Promise.all([
+  // 1. Run answer-verifier + unified quality/content checker + difficulty checker in parallel
+  const [answerResult, unifiedResult, difficultyResult] = await Promise.all([
     verifyAnswers(tasks, params.subject, params.grade),
     checkQualityAndContent(tasks, params.subject, params.grade, params.topic, params.difficulty),
+    checkDifficulty(tasks, params.subject, params.grade, params.difficulty),
   ])
 
-  const agents = [answerResult, unifiedResult]
+  const agents = [answerResult, unifiedResult, difficultyResult]
 
   // 2. Collect all issues
   const allIssues: Array<{ taskIndex: number; agent: string; issue: AgentIssue }> = []
@@ -148,7 +146,7 @@ export async function runMultiAgentValidation(
   let fixedTasks = [...tasks]
   const fixResults: FixResult[] = []
 
-  // Collect tasks with errors + DIFFICULTY_MISMATCH warnings for fixing
+  // Collect tasks with errors for fixing (difficulty warnings excluded)
   const tasksWithErrors = collectTasksWithErrors(answerResult, unifiedResult)
 
   const stem = isStemSubject(params.subject)
@@ -237,6 +235,7 @@ export async function runMultiAgentValidation(
 
 export { verifyAnswers } from './answer-verifier.js'
 export { checkQualityAndContent } from './unified-checker.js'
+export { checkDifficulty } from './difficulty-checker.js'
 export { fixTask, type FixResult } from './task-fixer.js'
 
 // Legacy re-exports for backward compatibility (if anything imports these directly)

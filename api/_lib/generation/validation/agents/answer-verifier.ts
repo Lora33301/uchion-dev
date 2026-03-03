@@ -23,6 +23,14 @@ interface GeneratedTask {
   blanks?: { position: number; correctAnswer: string; acceptableVariants?: string[] }[]
 }
 
+const DISTRACTOR_CHECK = `
+Для тестовых заданий (single_choice/multiple_choice):
+1. Реши задание самостоятельно
+2. Проверь КАЖДЫЙ вариант ответа — верный он или нет
+3. Для single_choice: если правильных вариантов больше одного — ошибка MULTIPLE_CORRECT
+4. Для single_choice: если указанный правильный вариант неверен — ошибка WRONG_ANSWER
+5. Для multiple_choice: если среди «неправильных» есть правильный или среди «правильных» неправильный — ошибка WRONG_ANSWER`
+
 const SUBJECT_PROMPTS: Record<string, string> = {
   math: `Ты -- проверяющий учитель математики начальной и средней школы (1-6 класс).
 Для каждого задания:
@@ -30,7 +38,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 2. Сравни свой ответ с указанным
 3. Если не совпадают -- укажи ошибку и правильный ответ
 
-Проверяй: арифметику, дроби, проценты, простые уравнения.`,
+Проверяй: арифметику, дроби, проценты, простые уравнения.
+${DISTRACTOR_CHECK}`,
 
   algebra: `Ты -- проверяющий учитель алгебры (7-11 класс).
 Для каждого задания:
@@ -38,7 +47,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 2. Сравни свой ответ с указанным
 3. Если не совпадают -- укажи ошибку и правильный ответ
 
-Проверяй: уравнения, функции, графики, производные, логарифмы, тригонометрию.`,
+Проверяй: уравнения, функции, графики, производные, логарифмы, тригонометрию.
+${DISTRACTOR_CHECK}`,
 
   geometry: `Ты -- проверяющий учитель геометрии (7-11 класс).
 Для каждого задания:
@@ -46,14 +56,16 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 2. Сравни свой ответ с указанным
 3. Если не совпадают -- укажи ошибку и правильный ответ
 
-Проверяй: теоремы, формулы площадей и объёмов, векторы, координаты.`,
+Проверяй: теоремы, формулы площадей и объёмов, векторы, координаты.
+${DISTRACTOR_CHECK}`,
 
   russian: `Ты -- проверяющий учитель русского языка (1-11 класс).
 Для каждого задания:
 1. Проверь правильность ответа по правилам русского языка
 2. Если ответ неверный -- укажи ошибку и правильный ответ
 
-Проверяй: орфографию, пунктуацию, грамматику, части речи, синтаксис.`,
+Проверяй: орфографию, пунктуацию, грамматику, части речи, синтаксис.
+${DISTRACTOR_CHECK}`,
 }
 
 function formatTaskForPrompt(task: GeneratedTask, index: number): string {
@@ -92,6 +104,7 @@ function formatTaskForPrompt(task: GeneratedTask, index: number): string {
 interface LLMTaskResult {
   index: number
   status: 'ok' | 'error'
+  code?: 'WRONG_ANSWER' | 'MULTIPLE_CORRECT'
   issue?: string
 }
 
@@ -128,9 +141,14 @@ ${tasksText}
 {
   "tasks": [
     {"index": 0, "status": "ok"},
-    {"index": 1, "status": "error", "issue": "Неверный ответ. Указано: ... Правильно: ..."}
+    {"index": 1, "status": "error", "code": "WRONG_ANSWER", "issue": "Неверный ответ. Указано: ... Правильно: ..."},
+    {"index": 2, "status": "error", "code": "MULTIPLE_CORRECT", "issue": "Варианты 0 и 2 оба правильны"}
   ]
 }
+
+Коды ошибок:
+- "WRONG_ANSWER" — указанный ответ неверен, или среди дистракторов есть правильный вариант
+- "MULTIPLE_CORRECT" — в single_choice задании несколько вариантов можно обосновать как правильные
 
 Проверь ВСЕ ${tasks.length} заданий. Индексы от 0 до ${tasks.length - 1}.`
 
@@ -170,11 +188,11 @@ ${tasksText}
     const taskResults: AgentTaskResult[] = llmTasks.map((t) => {
       const issues: AgentIssue[] = []
       if (t.status === 'error' && t.issue) {
-        issues.push({
-          code: 'WRONG_ANSWER',
-          message: t.issue,
-          suggestion: 'Пересгенерировать задание или исправить ответ',
-        })
+        const code = t.code || 'WRONG_ANSWER'
+        const suggestion = code === 'MULTIPLE_CORRECT'
+          ? 'Переформулировать задание — несколько вариантов могут быть правильными'
+          : 'Пересгенерировать задание или исправить ответ'
+        issues.push({ code, message: t.issue, suggestion })
       }
       return {
         taskIndex: t.index,

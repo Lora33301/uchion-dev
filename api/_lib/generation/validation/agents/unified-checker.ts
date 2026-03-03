@@ -37,6 +37,16 @@ const SUBJECT_NAMES: Record<string, string> = {
   russian: 'Русский язык',
 }
 
+const CRITICAL_CHECKS = `
+КРИТИЧЕСКИЕ ПРОВЕРКИ (обязательны для каждого задания):
+1. РЕШАЕМОСТЬ: Может ли ученик данного класса выполнить задание за конечное число шагов? Ответ должен быть конечным и записываемым.
+2. SINGLE_CHOICE: Ровно один вариант должен быть однозначно правильным. Если 2+ варианта можно обосновать как правильные — ошибка BAD_FORMULATION.
+3. ДИСТРАКТОРЫ: Все неправильные варианты должны быть однозначно неверными. Проверь каждый вариант.
+4. MULTIPLE_CHOICE: Все указанные правильные — действительно правильны; все остальные — однозначно нет.
+5. MATCHING: Каждый элемент левого столбца однозначно соответствует ровно одному элементу правого.
+6. FILL_BLANK: Пропуск имеет единственный верный ответ.
+7. OPEN_QUESTION: Задание имеет конкретный, записываемый ответ. «Найди все решения» бесконечного множества — ошибка.`
+
 const SUBJECT_PROMPTS: Record<string, string> = {
   russian: `Ты — методист по русскому языку. Проверь качество и соответствие каждого задания.
 
@@ -47,7 +57,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 
 ВАРИАНТЫ ОТВЕТОВ (для тестов):
 - Среди вариантов ДОЛЖЕН быть хотя бы один правильный
-- Если ни один вариант не подходит — это ошибка`,
+- Если ни один вариант не подходит — это ошибка
+${CRITICAL_CHECKS}`,
 
   math: `Ты — методист по математике начальной и средней школы. Проверь качество и соответствие каждого задания.
 
@@ -58,7 +69,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 
 ВАРИАНТЫ ОТВЕТОВ (для тестов):
 - Среди вариантов ДОЛЖЕН быть правильный
-- Неправильные варианты — правдоподобные (типичные ошибки учеников)`,
+- Неправильные варианты — правдоподобные (типичные ошибки учеников)
+${CRITICAL_CHECKS}`,
 
   algebra: `Ты — методист по алгебре. Проверь качество и соответствие каждого задания.
 
@@ -69,7 +81,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 
 ВАРИАНТЫ ОТВЕТОВ (для тестов):
 - Среди вариантов ДОЛЖЕН быть правильный
-- Неправильные варианты — правдоподобные`,
+- Неправильные варианты — правдоподобные
+${CRITICAL_CHECKS}`,
 
   geometry: `Ты — методист по геометрии. Проверь качество и соответствие каждого задания.
 
@@ -80,7 +93,8 @@ const SUBJECT_PROMPTS: Record<string, string> = {
 
 ВАРИАНТЫ ОТВЕТОВ (для тестов):
 - Среди вариантов ДОЛЖЕН быть правильный
-- Неправильные варианты — правдоподобные`,
+- Неправильные варианты — правдоподобные
+${CRITICAL_CHECKS}`,
 }
 
 function formatTaskForPrompt(task: GeneratedTask, index: number): string {
@@ -88,20 +102,28 @@ function formatTaskForPrompt(task: GeneratedTask, index: number): string {
 
   switch (task.type) {
     case 'single_choice':
+      parts.push(`Вопрос: ${task.question}`)
+      parts.push(`Варианты: ${(task.options || []).map((o, i) => `${i}) ${o}`).join('; ')}`)
+      parts.push(`Указанный правильный: вариант ${task.correctIndex} (${task.options?.[task.correctIndex ?? 0]})`)
+      break
     case 'multiple_choice':
       parts.push(`Вопрос: ${task.question}`)
-      parts.push(`Варианты: ${(task.options || []).join('; ')}`)
+      parts.push(`Варианты: ${(task.options || []).map((o, i) => `${i}) ${o}`).join('; ')}`)
+      parts.push(`Указанные правильные: ${(task.correctIndices || []).map(i => `${i}) ${task.options?.[i]}`).join('; ')}`)
       break
     case 'open_question':
       parts.push(`Вопрос: ${task.question}`)
+      parts.push(`Указанный ответ: ${task.correctAnswer}`)
       break
     case 'matching':
       parts.push(`Инструкция: ${task.instruction}`)
-      parts.push(`Левый столбец: ${(task.leftColumn || []).join('; ')}`)
-      parts.push(`Правый столбец: ${(task.rightColumn || []).join('; ')}`)
+      parts.push(`Левый столбец: ${(task.leftColumn || []).map((v, i) => `${i}) ${v}`).join('; ')}`)
+      parts.push(`Правый столбец: ${(task.rightColumn || []).map((v, i) => `${i}) ${v}`).join('; ')}`)
+      parts.push(`Указанные пары: ${(task.correctPairs || []).map(([l, r]) => `${l}-${r}`).join(', ')}`)
       break
     case 'fill_blank':
       parts.push(`Текст: ${task.textWithBlanks}`)
+      parts.push(`Пропуски: ${(task.blanks || []).map(b => `(${b.position}) ${b.correctAnswer}`).join('; ')}`)
       break
   }
 
@@ -111,7 +133,7 @@ function formatTaskForPrompt(task: GeneratedTask, index: number): string {
 interface LLMUnifiedResult {
   index: number
   status: 'ok' | 'warning' | 'error'
-  code?: 'BAD_FORMULATION' | 'DIFFICULTY_MISMATCH' | 'OFF_TOPIC' | 'PARTIAL_MISMATCH'
+  code?: 'BAD_FORMULATION' | 'OFF_TOPIC' | 'PARTIAL_MISMATCH'
   issue?: string
 }
 
@@ -120,8 +142,7 @@ interface LLMUnifiedResult {
  * Replaces separate quality-checker and content-checker agents.
  * Checks in a single LLM call:
  * - Formulation correctness (BAD_FORMULATION)
- * - Answer options validity (BAD_FORMULATION)
- * - Difficulty match (DIFFICULTY_MISMATCH)
+ * - Answer options validity + distractors (BAD_FORMULATION)
  * - Topic relevance (OFF_TOPIC)
  * - Grade appropriateness (PARTIAL_MISMATCH)
  */
@@ -176,26 +197,23 @@ ${tasksText}
 
 Для каждого задания проверь ВСЁ:
 1. Корректность формулировки (полное, однозначное, решаемое)
-2. Правильность вариантов ответов (есть правильный вариант)
-3. Соответствие уровню сложности "${difficultyName}"
-4. Соответствие теме "${topic}"
-5. Соответствие программе ${grade} класса (нет лишних терминов)
+2. Правильность вариантов ответов (указанный правильный действительно верен, дистракторы однозначно неверны)
+3. Соответствие теме "${topic}"
+4. Соответствие программе ${grade} класса (нет лишних терминов)
 
 Верни ТОЛЬКО JSON (без markdown):
 {
   "tasks": [
     {"index": 0, "status": "ok"},
     {"index": 1, "status": "error", "code": "BAD_FORMULATION", "issue": "Описание проблемы"},
-    {"index": 2, "status": "warning", "code": "DIFFICULTY_MISMATCH", "issue": "Задание слишком лёгкое для уровня hard"},
-    {"index": 3, "status": "error", "code": "OFF_TOPIC", "issue": "Не соответствует теме"},
-    {"index": 4, "status": "warning", "code": "PARTIAL_MISMATCH", "issue": "Используются термины не по программе"}
+    {"index": 2, "status": "error", "code": "OFF_TOPIC", "issue": "Не соответствует теме"},
+    {"index": 3, "status": "warning", "code": "PARTIAL_MISMATCH", "issue": "Используются термины не по программе"}
   ]
 }
 
 Проверь ВСЕ ${tasks.length} заданий. Индексы от 0 до ${tasks.length - 1}.
 Коды ошибок:
-- "BAD_FORMULATION" (error) — формулировка некорректна, нет правильного варианта, нерешаемо
-- "DIFFICULTY_MISMATCH" (warning) — сложность не соответствует уровню ${difficultyName}
+- "BAD_FORMULATION" (error) — формулировка некорректна, нет правильного варианта, нерешаемо, несколько правильных вариантов, дистрактор можно обосновать как правильный
 - "OFF_TOPIC" (error) — полностью не соответствует теме или классу
 - "PARTIAL_MISMATCH" (warning) — частично выходит за рамки или использует сложные термины
 Если задание в порядке — "ok" (без code и issue).`
@@ -235,7 +253,7 @@ ${tasksText}
     const taskResults: AgentTaskResult[] = llmTasks.map((t) => {
       const issues: AgentIssue[] = []
       if ((t.status === 'error' || t.status === 'warning') && t.issue) {
-        const code = t.code || (t.status === 'error' ? 'BAD_FORMULATION' : 'DIFFICULTY_MISMATCH')
+        const code = t.code || (t.status === 'error' ? 'BAD_FORMULATION' : 'PARTIAL_MISMATCH')
         const suggestion = getSuggestion(code)
         issues.push({ code, message: t.issue, suggestion })
       }
@@ -263,8 +281,6 @@ function getSuggestion(code: string): string {
   switch (code) {
     case 'BAD_FORMULATION':
       return 'Переформулировать задание или исправить варианты ответов'
-    case 'DIFFICULTY_MISMATCH':
-      return 'Скорректировать сложность задания'
     case 'OFF_TOPIC':
       return 'Пересгенерировать задание по указанной теме'
     case 'PARTIAL_MISMATCH':
