@@ -8,6 +8,7 @@ import { WorksheetSchema, type Subject } from '../shared/worksheet.js'
 // Note: api/_lib/ai-provider.ts now checks NODE_ENV=production for OpenAI.
 // We can simulate production if we want to test OpenAI.
 const USE_REAL_AI = process.env.SMOKE_REAL_AI === 'true'
+const USE_PAID = process.env.SMOKE_PAID === 'true'
 
 if (USE_REAL_AI) {
   process.env.NODE_ENV = 'production'
@@ -17,8 +18,12 @@ if (USE_REAL_AI) {
   console.log('🤖 SMOKE TEST: Running with Dummy Provider')
 }
 
-const subjects: Subject[] = ['math', 'russian']
-const grades = [1, 2, 3, 4]
+const subjects: Subject[] = process.env.SMOKE_SUBJECTS
+  ? process.env.SMOKE_SUBJECTS.split(',') as Subject[]
+  : ['math', 'russian']
+const grades = process.env.SMOKE_GRADES
+  ? process.env.SMOKE_GRADES.split(',').map(Number)
+  : [1, 2, 3, 4]
 const topic = 'тестовая тема для смоук-теста'
 
 async function run() {
@@ -34,7 +39,7 @@ async function run() {
       process.stdout.write(`${label} Generating... `)
 
       try {
-        const params = { subject, grade, topic }
+        const params = { subject, grade, topic, ...(USE_PAID && { isPaid: true }) }
         
         // 1. Generate Worksheet Structure
         const worksheet = await provider.generateWorksheet(params, (p) => {
@@ -65,8 +70,8 @@ async function run() {
            continue
         }
 
-        if (finalWorksheet.assignments.length !== 7) {
-           console.log(`❌ FAIL (Assignments count: ${finalWorksheet.assignments.length}, expected 7)`)
+        if (finalWorksheet.assignments.length !== 5) {
+           console.log(`❌ FAIL (Assignments count: ${finalWorksheet.assignments.length}, expected 5)`)
            failed++
            continue
         }

@@ -114,7 +114,7 @@ throw ApiError.internal('Server error')
 
 | Plan | Display Name | Price | Gens/mo | Folders | Regen/day | PDF Styles | Model |
 |------|-------------|-------|---------|---------|-----------|------------|-------|
-| free | Бесплатный | 0 | 5 (one-time) | 2 | 0 | standard only | deepseek-v3.2 |
+| free | Бесплатный | 0 | 5 (one-time) | 2 | 0 | standard only | gpt-4.1 |
 | starter | Начинающий | 390/mo | 25 | 5 | 3 | all | gpt-4.1 |
 | teacher | Методист | 890/mo | 60 | 10 | 6 | all | gpt-4.1 |
 | expert | Эксперт | 1690/mo | 120 | 10 | 10 | all | gpt-4.1 |
@@ -132,7 +132,7 @@ OPENAI_API_KEY=sk-your-polza-api-key     # Only if AI_PROVIDER=polza
 AI_BASE_URL=https://api.polza.ai/api/v1
 # Models (all optional, have defaults):
 AI_MODEL_PAID=openai/gpt-4.1
-AI_MODEL_FREE=deepseek/deepseek-v3.2
+AI_MODEL_FREE=openai/gpt-4.1
 AI_MODEL_AGENTS=openai/gpt-4.1-mini
 AI_MODEL_VERIFIER_STEM=google/gemini-3-flash-preview
 AI_MODEL_VERIFIER_HUMANITIES=google/gemini-2.5-flash-lite
@@ -173,7 +173,7 @@ Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
 5. **Prodamus webhooks** -- `_param_*` fields NOT forwarded in subscription webhooks; userId resolved via email fallback chain
 6. **Drizzle ORM** -- use `error.cause.code` for PG error codes (wrapped errors), not `error.code`
 7. **Token limit** -- `max_tokens: 16000` for generation, NOT 8000
-8. **Grade-tiered models** -- grades 1-6 use cheap gpt-4.1-mini; grades 7-11 use Gemini with reasoning
+8. **Unified verification** -- all grades (1-11) use Gemini for verification: STEM uses gemini-3-flash (reasoning), humanities uses gemini-2.5-flash-lite
 9. **Paid model logic** -- `isPaid = planConfig.paidModel || user.hasPaidAccess || admin`. Subscriptions use `planConfig.paidModel` (resets on expiry). Generation pack purchases set `users.hasPaidAccess` (sticky). Do NOT set `hasPaidAccess` for subscriptions.
 
 ## See Also

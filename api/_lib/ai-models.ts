@@ -7,7 +7,7 @@ export function getGenerationModel(isPaid: boolean): string {
   if (isPaid) {
     return process.env.AI_MODEL_PAID || 'openai/gpt-4.1'
   }
-  return process.env.AI_MODEL_FREE || 'deepseek/deepseek-v3.2'
+  return process.env.AI_MODEL_FREE || 'openai/gpt-4.1'
 }
 
 export function getAgentsModel(): string {
@@ -36,27 +36,14 @@ export interface VerifierModelConfig {
 
 /**
  * Model config for answer-verifier agent.
- * - STEM subjects (math, algebra, geometry): Gemini 3 Flash with reasoning effort=low, budget=1024
+ * - STEM subjects (math, algebra, geometry): Gemini 3 Flash with reasoning effort=low
  * - Humanities (russian, etc.): Gemini 2.5 Flash Lite with reasoning disabled
- *
- * Accepts optional grade for tiered verification:
- * - Grades 1-6 math: uses cheaper gpt-4.1-mini (no reasoning needed for arithmetic)
- * - Grades 7-11 STEM: uses Gemini with reasoning
+ * All grades (1-11) use the same Gemini models for consistent verification quality.
  */
 export function getVerifierModelConfig(subject: string, grade?: number): VerifierModelConfig {
   if (STEM_SUBJECTS.has(subject)) {
-    // Tiered verification: simple grades use cheaper model
-    if (grade && grade <= 6 && subject === 'math') {
-      const model = process.env.AI_MODEL_AGENTS || 'openai/gpt-4.1-mini'
-      return { model, reasoning: { enabled: false } }
-    }
     const model = process.env.AI_MODEL_VERIFIER_STEM || 'google/gemini-3-flash-preview'
     return { model, reasoning: { effort: 'low' } }
-  }
-  // Russian 1-6: cheaper model
-  if (grade && grade <= 6) {
-    const model = process.env.AI_MODEL_AGENTS || 'openai/gpt-4.1-mini'
-    return { model, reasoning: { enabled: false } }
   }
   const model = process.env.AI_MODEL_VERIFIER_HUMANITIES || 'google/gemini-2.5-flash-lite'
   return { model, reasoning: { enabled: false } }
@@ -69,17 +56,8 @@ export function getVerifierModelConfig(subject: string, grade?: number): Verifie
  */
 export function getFixerModelConfig(subject: string, grade?: number): VerifierModelConfig {
   if (STEM_SUBJECTS.has(subject)) {
-    // Tiered: simple grades use cheaper model
-    if (grade && grade <= 6 && subject === 'math') {
-      const model = process.env.AI_MODEL_AGENTS || 'openai/gpt-4.1-mini'
-      return { model, reasoning: { enabled: false } }
-    }
     const model = process.env.AI_MODEL_VERIFIER_STEM || 'google/gemini-3-flash-preview'
     return { model, reasoning: { effort: 'minimal' } }
-  }
-  if (grade && grade <= 6) {
-    const model = process.env.AI_MODEL_AGENTS || 'openai/gpt-4.1-mini'
-    return { model, reasoning: { enabled: false } }
   }
   const model = process.env.AI_MODEL_VERIFIER_HUMANITIES || 'google/gemini-2.5-flash-lite'
   return { model, reasoning: { enabled: false } }
