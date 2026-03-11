@@ -37,7 +37,7 @@ Each format has 3 variants (basic / pro / pro+), costing 1/2/3 generations.
 2. LLM generates JSON with `tasks` array (each task has a type)
 3. Tasks split into test (single/multiple_choice) and open (rest)
 4. If not enough tasks -- **retry** (generate missing ones)
-5. **Multi-agent validation** (answer-verifier, task-fixer, quality-checker, unified-checker)
+5. **Multi-agent validation** (3 agents in parallel + task-fixer, see below)
 6. Convert to `Worksheet` format (assignments + test + answers)
 7. PDF generation via Puppeteer (HTML -> PDF)
 8. **AI usage tracking** -- log tokens and cost to `ai_usage` table
@@ -47,24 +47,23 @@ Each format has 3 variants (basic / pro / pro+), costing 1/2/3 generations.
 | Purpose | Model | Env var |
 |---------|-------|---------|
 | Generation (paid) | `openai/gpt-4.1` (~0.7 rub/sheet) | `AI_MODEL_PAID` |
-| Generation (free) | `deepseek/deepseek-v3.2` | `AI_MODEL_FREE` |
+| Generation (free) | `openai/gpt-4.1` | `AI_MODEL_FREE` |
 
 **Paid model selection logic** (`isPaid` in generate/presentations routes):
 - Active subscription with `paidModel: true` (starter/teacher/expert) → gpt-4.1
 - User bought a generation pack (`users.hasPaidAccess = true`) → gpt-4.1
 - Admin role → gpt-4.1
-- Otherwise → deepseek (free model)
+- Otherwise → gpt-4.1 (free model, same as paid)
 
-When subscription expires, user goes back to deepseek. `hasPaidAccess` is set only for one-time generation pack purchases (NOT subscriptions), so it persists independently.
-| Validation agents | `openai/gpt-4.1-mini` | `AI_MODEL_AGENTS` |
-| Verifier (STEM 7-11) | `google/gemini-3-flash-preview` (reasoning: low) | `AI_MODEL_VERIFIER_STEM` |
-| Verifier (humanities 7-11) | `google/gemini-2.5-flash-lite` (reasoning: off) | `AI_MODEL_VERIFIER_HUMANITIES` |
-| Verifier (grades 1-6) | `openai/gpt-4.1-mini` (reasoning: off, cheap) | -- |
-| Fixer (STEM 7-11) | `google/gemini-3-flash-preview` (reasoning: minimal) | -- |
-| Fixer (other) | same as verifier for that tier | -- |
+When subscription expires, user goes back to free model. `hasPaidAccess` is set only for one-time generation pack purchases (NOT subscriptions), so it persists independently.
+| Validation agents (unified-checker, difficulty-checker) | `openai/gpt-4.1-mini` | `AI_MODEL_AGENTS` |
+| Verifier (STEM, all grades) | `google/gemini-3-flash-preview` (reasoning: low) | `AI_MODEL_VERIFIER_STEM` |
+| Verifier (humanities, all grades) | `google/gemini-2.5-flash-lite` (reasoning: off) | `AI_MODEL_VERIFIER_HUMANITIES` |
+| Fixer (STEM) | `google/gemini-3-flash-preview` (reasoning: minimal) | -- |
+| Fixer (other) | same as verifier for that subject | -- |
 | Presentations | `anthropic/claude-sonnet-4.5` | `AI_MODEL_PRESENTATION` |
 
-**Grade-tiered verification**: Grades 1-6 (all subjects) use cheap gpt-4.1-mini instead of Gemini -- basic arithmetic and grammar don't need reasoning.
+**Unified verification**: All grades (1-11) use Gemini for verification. STEM uses gemini-3-flash (reasoning), humanities uses gemini-2.5-flash-lite.
 
 **STEM subjects**: math, algebra, geometry.
 
@@ -83,12 +82,57 @@ When subscription expires, user goes back to deepseek. `hasPaidAccess` is set on
 
 ## Validation Agents (`api/_lib/generation/validation/agents/`)
 
-- `answer-verifier.ts` -- verifies answer correctness
-- `task-fixer.ts` -- fixes incorrect tasks
-- `quality-checker.ts` -- checks task quality
-- `content-checker.ts` -- checks content appropriateness
-- `unified-checker.ts` -- combined check
-- `deterministic.ts` -- deterministic validation (counts, formats)
+### Architecture
+
+3 validation agents run **in parallel** via `Promise.all`, then task-fixer runs sequentially for errors:
+
+```
+┌─────────────────────┐  ┌──────────────────────┐  ┌─────────────────────┐
+│   answer-verifier   │  │   unified-checker    │  │  difficulty-checker  │
+│  (Gemini verifier)  │  │  (gpt-4.1-mini)      │  │  (gpt-4.1-mini)     │
+│                     │  │                      │  │                     │
+│ Solves each task,   │  │ Checks formulations, │  │ Checks difficulty   │
+│ verifies answers,   │  │ distractors, topics, │  │ matches requested   │
+│ checks distractors  │  │ grade level          │  │ level               │
+└────────┬────────────┘  └──────────┬───────────┘  └──────────┬──────────┘
+         │ errors                   │ errors                  │ warnings only
+         └──────────┬───────────────┘                         │
+                    ▼                                         ▼
+            ┌──────────────┐                          (logged for analytics,
+            │  task-fixer  │                           NOT sent to fixer)
+            │ (Gemini)     │
+            └──────┬───────┘
+                   ▼
+          batch re-verification
+```
+
+### Agents
+
+- **`answer-verifier.ts`** -- Solves each task independently and compares with the given answer. Uses Gemini (STEM: gemini-3-flash with reasoning, humanities: gemini-2.5-flash-lite). Error codes:
+  - `WRONG_ANSWER` -- answer is incorrect
+  - `MULTIPLE_CORRECT` -- single_choice task has multiple valid answers
+  - For test tasks, checks **every option** (not just the marked correct one) to ensure distractors are unambiguously wrong
+
+- **`unified-checker.ts`** -- Quality + content checker (replaced separate quality-checker and content-checker). Uses gpt-4.1-mini. Receives full task data **including answers**. Error codes:
+  - `BAD_FORMULATION` (error) -- bad formulation, unsolvable, ambiguous distractors, multiple correct answers
+  - `OFF_TOPIC` (error) -- completely off-topic or wrong grade
+  - `PARTIAL_MISMATCH` (warning) -- partially out of scope, advanced terminology
+  - Includes critical checks: solvability, single correct answer for single_choice, all distractors unambiguously wrong, matching uniqueness, fill_blank single answer, open_question finite answer
+
+- **`difficulty-checker.ts`** -- Validates difficulty matches requested level. Uses gpt-4.1-mini. **Logging only** -- produces `DIFFICULTY_MISMATCH` warnings that go into `allIssues` for analytics but do NOT trigger the fixer. Runs in parallel with the other 2 agents.
+
+- **`task-fixer.ts`** -- Fixes tasks with errors from answer-verifier and unified-checker. Uses Gemini (same model as verifier, reasoning: minimal). After fixing, runs **batch re-verification** (single verifyAnswers call for all fixed tasks). Reverts fixes that fail re-verification. Max fixes per generation: configurable via `MAX_FIXES_PER_GENERATION`.
+
+- **`deterministic.ts`** -- Deterministic validation (counts, formats, structure)
+
+### Non-STEM behavior
+
+For non-STEM subjects (russian), the **task-fixer is skipped** -- flash-lite creates false positives. Errors are logged only.
+
+### Legacy files (not used in orchestrator)
+
+- `quality-checker.ts` -- replaced by unified-checker
+- `content-checker.ts` -- replaced by unified-checker
 
 ## Key Files
 
