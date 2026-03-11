@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import SubscriptionPlansModal from './SubscriptionPlansModal'
 
 function PlusIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -47,6 +48,7 @@ export default function Header() {
   const location = useLocation()
   const isDashboard = location.pathname === '/dashboard'
   const [createOpen, setCreateOpen] = useState(false)
+  const [showTariffModal, setShowTariffModal] = useState(false)
   const createRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown on outside click
@@ -63,6 +65,7 @@ export default function Header() {
   }, [createOpen])
 
   return (
+    <>
       <header className="relative z-30 pt-4 pb-4">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -107,38 +110,56 @@ export default function Header() {
                 </div>
               )}
             </div>
-        </div>
+          </div>
 
-        <div className="flex items-center gap-4">
-          {user ? (
-            <>
-              <Link
-                to="/dashboard"
-                className={`flex items-center gap-2 px-4 py-2 text-[#8C52FF] text-sm font-semibold rounded-xl transition-all hover:scale-105 bg-purple-50/80 hover:bg-purple-100 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)] ${isDashboard ? 'bg-purple-100 border-purple-300/80' : ''}`}
-              >
-                <UserIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Личный кабинет</span>
-              </Link>
-              {user.role === 'admin' && (
+          <div className="flex items-center gap-2 sm:gap-4">
+            {user ? (
+              <>
                 <Link
-                  to="/admin"
-                  className={`flex items-center justify-center w-10 h-10 text-[#8C52FF] rounded-xl transition-all hover:scale-105 bg-purple-50/80 hover:bg-purple-100 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)] ${location.pathname.startsWith('/admin') ? 'bg-purple-100 border-purple-300/80' : ''}`}
-                  title="Админ-панель"
+                  to="/dashboard"
+                  className={`flex items-center gap-2 px-4 py-2 text-[#8C52FF] text-sm font-semibold rounded-xl transition-all hover:scale-105 bg-purple-50/80 hover:bg-purple-100 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)] ${isDashboard ? 'bg-purple-100 border-purple-300/80' : ''}`}
                 >
-                  <ShieldIcon className="w-5 h-5" />
+                  <UserIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Личный кабинет</span>
                 </Link>
-              )}
-            </>
-          ) : (
-            <Link
-              to="/login"
-              className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#8C52FF] to-[#A16BFF] rounded-lg hover:scale-105 transition-transform"
-            >
-              Войти
-            </Link>
-          )}
+                {/* Sparkle Tariff button */}
+                <button
+                  onClick={() => setShowTariffModal(true)}
+                  className="sparkle-btn flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-xl hover:scale-105"
+                  title="Тарифы"
+                >
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L14.09 8.26L20.5 9.27L15.75 14.14L16.18 20.5L12 17.77L7.82 20.5L8.25 14.14L3.5 9.27L9.91 8.26L12 2Z" />
+                  </svg>
+                  <span className="hidden sm:inline">Тарифы</span>
+                </button>
+                {user.role === 'admin' && (
+                  <Link
+                    to="/admin"
+                    className={`flex items-center justify-center w-10 h-10 text-[#8C52FF] rounded-xl transition-all hover:scale-105 bg-purple-50/80 hover:bg-purple-100 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)] ${location.pathname.startsWith('/admin') ? 'bg-purple-100 border-purple-300/80' : ''}`}
+                    title="Админ-панель"
+                  >
+                    <ShieldIcon className="w-5 h-5" />
+                  </Link>
+                )}
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#8C52FF] to-[#A16BFF] rounded-lg hover:scale-105 transition-transform"
+              >
+                Войти
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Subscription Plans Modal (triggered from Header sparkle button) */}
+      <SubscriptionPlansModal
+        isOpen={showTariffModal}
+        onClose={() => setShowTariffModal(false)}
+      />
+    </>
   )
 }

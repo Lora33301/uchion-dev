@@ -418,21 +418,9 @@ export default function GeneratePage() {
             </button>
           </div>
 
-          {/* Sparkle CTA + Generations counter */}
+          {/* Generations counter */}
           {user && <div className="flex items-center gap-1.5">
-            {/* Sparkle Tariff button */}
-            <button
-              type="button"
-              onClick={() => setShowBuyModal(true)}
-              className="sparkle-btn flex items-center gap-1.5 px-3 py-2 sm:px-4 text-white text-sm font-semibold rounded-full"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L14.09 8.26L20.5 9.27L15.75 14.14L16.18 20.5L12 17.77L7.82 20.5L8.25 14.14L3.5 9.27L9.91 8.26L12 2Z" />
-              </svg>
-              <span className="hidden sm:inline">Тарифы</span>
-            </button>
-
-            <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-4 py-2 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
+            <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-3 py-2 sm:px-4 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
               <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
               </svg>
