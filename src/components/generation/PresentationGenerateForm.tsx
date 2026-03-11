@@ -18,6 +18,7 @@ interface PresentationGenerateFormProps {
   isDisabled: boolean
   errorText: string | null
   errorCode: string | null
+  generationsExhausted: boolean
   onSubjectChange: (subject: Subject) => void
   onOpenBuyModal: () => void
   onSubmit: (values: GeneratePresentationFormValues) => void
@@ -31,12 +32,15 @@ export default function PresentationGenerateForm({
   isDisabled,
   errorText,
   errorCode,
+  generationsExhausted,
   onSubjectChange,
   onOpenBuyModal,
   onSubmit,
 }: PresentationGenerateFormProps) {
   const watchThemePreset = form.watch('themePreset')
   const watchSlideCount = form.watch('slideCount')
+  const watchSubject = form.watch('subject')
+  const hasSubject = !!watchSubject
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
@@ -44,18 +48,25 @@ export default function PresentationGenerateForm({
       <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
         {/* Subject and Grade row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-          <Controller
-            control={form.control}
-            name="subject"
-            render={({ field }) => (
-              <CustomSelect
-                label="Предмет"
-                value={field.value}
-                onChange={(v) => onSubjectChange(v as Subject)}
-                options={SUBJECTS.map(s => ({ label: s.label, value: s.value }))}
-              />
+          <div>
+            <Controller
+              control={form.control}
+              name="subject"
+              render={({ field }) => (
+                <CustomSelect
+                  label="Предмет"
+                  value={field.value}
+                  onChange={(v) => onSubjectChange(v as Subject)}
+                  options={SUBJECTS.map(s => ({ label: s.label, value: s.value }))}
+                  placeholder="Выбрать предмет"
+                  error={!!form.formState.errors.subject}
+                />
+              )}
+            />
+            {form.formState.errors.subject && (
+              <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.subject.message}</p>
             )}
-          />
+          </div>
 
           <Controller
             control={form.control}
@@ -66,6 +77,8 @@ export default function PresentationGenerateForm({
                 value={field.value}
                 onChange={field.onChange}
                 options={availableGrades.map(g => ({ label: `${g} класс`, value: g }))}
+                placeholder="Выберите класс"
+                disabled={!hasSubject}
               />
             )}
           />
@@ -135,7 +148,8 @@ export default function PresentationGenerateForm({
         {/* Submit button */}
         <div className="flex justify-end">
           <button
-            type="submit"
+            type={generationsExhausted ? "button" : "submit"}
+            onClick={generationsExhausted ? () => onOpenBuyModal() : undefined}
             disabled={isDisabled}
             className="group relative inline-flex h-12 px-8 items-center justify-center overflow-hidden rounded-xl bg-[#A855F7]/80 hover:bg-[#A855F7]/90 text-base font-semibold text-white shadow-md shadow-purple-400/20 transition-all hover:shadow-purple-400/30 disabled:opacity-60 disabled:hover:bg-[#A855F7]/80"
           >

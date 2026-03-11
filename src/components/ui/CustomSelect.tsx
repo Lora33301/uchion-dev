@@ -11,22 +11,33 @@ type CustomSelectProps = {
   value: string | number
   onChange: (value: string | number) => void
   options: SelectOption[]
+  placeholder?: string
+  error?: boolean
+  disabled?: boolean
 }
 
-export default function CustomSelect({ label, value, onChange, options }: CustomSelectProps) {
+export default function CustomSelect({ label, value, onChange, options, placeholder, error, disabled }: CustomSelectProps) {
   const selectedOption = options.find(opt => opt.value === value)
 
   return (
     <div className="w-full">
-      <Listbox value={value} onChange={onChange}>
+      <Listbox value={value} onChange={onChange} disabled={disabled}>
         <div className="relative">
-          <Listbox.Button className="relative h-14 w-full cursor-default rounded-xl border border-slate-200 bg-white py-2 pl-5 pr-10 text-left shadow-sm transition-all focus:border-[#8C52FF] focus:outline-none focus:ring-2 focus:ring-[#8C52FF]/20 hover:border-[#8C52FF] hover:ring-2 hover:ring-[#8C52FF]/10">
+          <Listbox.Button className={`relative h-14 w-full rounded-xl border py-2 pl-5 pr-10 text-left shadow-sm transition-all focus:outline-none ${
+            disabled
+              ? 'bg-slate-50 cursor-not-allowed opacity-60 border-slate-200'
+              : error
+                ? 'border-red-300 bg-white ring-2 ring-red-100 cursor-default'
+                : 'border-slate-200 bg-white cursor-default focus:border-[#8C52FF] focus:ring-2 focus:ring-[#8C52FF]/20 hover:border-[#8C52FF] hover:ring-2 hover:ring-[#8C52FF]/10'
+          }`}>
             <span className="flex flex-col items-start">
               <span className="text-[11px] font-medium leading-4 text-slate-400 uppercase tracking-wide">
                 {label}
               </span>
-              <span className="block truncate text-base font-medium text-slate-900 mt-0.5">
-                {selectedOption?.label || 'Выберите...'}
+              <span className={`block truncate text-base mt-0.5 ${
+                selectedOption ? 'font-medium text-slate-900' : 'font-normal text-slate-400'
+              }`}>
+                {selectedOption?.label || placeholder || 'Выберите...'}
               </span>
             </span>
             <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
@@ -35,7 +46,7 @@ export default function CustomSelect({ label, value, onChange, options }: Custom
               </svg>
             </span>
           </Listbox.Button>
-          
+
           <Transition
             as={Fragment}
             leave="transition ease-in duration-100"

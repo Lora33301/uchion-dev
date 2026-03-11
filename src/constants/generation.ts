@@ -90,8 +90,10 @@ export const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
 // =============================================================================
 
 export const GenerateFormSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
-  grade: z.number().int().min(1).max(11),
+  subject: z.enum(['math', 'algebra', 'geometry', 'russian'], {
+    errorMap: () => ({ message: 'Выберите предмет' }),
+  }),
+  grade: z.number({ message: 'Выберите класс' }).int().min(1, 'Выберите класс').max(11),
   topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
   folderId: z.string().uuid().nullable().optional(),
   format: z.enum(['open_only', 'test_only', 'test_and_open']),
@@ -103,8 +105,10 @@ export const GenerateFormSchema = z.object({
 export type GenerateFormValues = z.infer<typeof GenerateFormSchema>
 
 export const GeneratePresentationFormSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
-  grade: z.number().int().min(1).max(11),
+  subject: z.enum(['math', 'algebra', 'geometry', 'russian'], {
+    errorMap: () => ({ message: 'Выберите предмет' }),
+  }),
+  grade: z.number({ message: 'Выберите класс' }).int().min(1, 'Выберите класс').max(11),
   topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
   themeType: z.literal('preset'),
   themePreset: z.enum(['professional', 'kids', 'school']).optional(),

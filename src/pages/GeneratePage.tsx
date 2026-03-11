@@ -58,7 +58,11 @@ export default function GeneratePage() {
   const generationsLeft = getGenerationsLeft(user)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showBuyModal, setShowBuyModal] = useState(false)
+  const [showLowGenWarning, setShowLowGenWarning] = useState(false)
   const greeting = getGreeting()
+
+  // Whether user is logged in but has 0 generations
+  const isGenerationsExhausted = !!user && !canGenerate(user)
 
   // Mode: worksheet or presentation
   const [searchParams] = useSearchParams()
@@ -71,6 +75,20 @@ export default function GeneratePage() {
     const tab = searchParams.get('tab')
     setMode(tab === 'presentation' ? 'presentation' : 'worksheet')
   }, [searchParams])
+
+  // Low generations warning (show once per session when <= 2 gens remaining)
+  useEffect(() => {
+    if (user && generationsLeft > 0 && generationsLeft <= 2) {
+      const key = `uchion_low_gen_warned_${user.id}`
+      if (!sessionStorage.getItem(key)) {
+        const timer = setTimeout(() => {
+          setShowLowGenWarning(true)
+          sessionStorage.setItem(key, '1')
+        }, 1000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [user, generationsLeft])
 
   // Presentation result state
   const [generatedPresentation, setGeneratedPresentation] = useState<{
@@ -91,12 +109,12 @@ export default function GeneratePage() {
 
   const folders = foldersData?.folders || []
 
-  // Worksheet form
+  // Worksheet form — subject starts empty (placeholder)
   const form = useForm<GenerateFormValues>({
     resolver: zodResolver(GenerateFormSchema),
     defaultValues: {
-      subject: 'math',
-      grade: 3,
+      subject: '' as any,
+      grade: 0 as any,
       topic: '',
       folderId: null,
       format: 'test_and_open',
@@ -106,12 +124,12 @@ export default function GeneratePage() {
     }
   })
 
-  // Presentation form
+  // Presentation form — subject starts empty (placeholder)
   const presentationForm = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      subject: 'math',
-      grade: 3,
+      subject: '' as any,
+      grade: 0 as any,
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
@@ -129,14 +147,16 @@ export default function GeneratePage() {
 
   // Get available grades for selected subject (worksheet)
   const availableGrades = useMemo(() => {
+    if (!watchSubject) return []
     const subjectConfig = SUBJECTS.find(s => s.value === watchSubject)
-    return subjectConfig?.grades || [1, 2, 3, 4]
+    return subjectConfig?.grades || []
   }, [watchSubject])
 
   // Get available grades for selected subject (presentation)
   const availablePresentationGrades = useMemo(() => {
+    if (!watchPresentationSubject) return []
     const subjectConfig = SUBJECTS.find(s => s.value === watchPresentationSubject)
-    return subjectConfig?.grades || [1, 2, 3, 4]
+    return subjectConfig?.grades || []
   }, [watchPresentationSubject])
 
   // Derive currentFormat and currentVariant from watched values
@@ -153,6 +173,8 @@ export default function GeneratePage() {
   // Reset grade if not available for new subject (worksheet)
   const handleSubjectChange = (newSubject: Subject) => {
     form.setValue('subject', newSubject)
+    form.clearErrors('subject')
+    form.clearErrors('grade')
     const newGrades = SUBJECTS.find(s => s.value === newSubject)?.grades || [1]
     const currentGrade = form.getValues('grade')
     if (!newGrades.includes(currentGrade)) {
@@ -163,6 +185,8 @@ export default function GeneratePage() {
   // Reset grade if not available for new subject (presentation)
   const handlePresentationSubjectChange = (newSubject: Subject) => {
     presentationForm.setValue('subject', newSubject)
+    presentationForm.clearErrors('subject')
+    presentationForm.clearErrors('grade')
     const newGrades = SUBJECTS.find(s => s.value === newSubject)?.grades || [1]
     const currentGrade = presentationForm.getValues('grade')
     if (!newGrades.includes(currentGrade)) {
@@ -253,8 +277,8 @@ export default function GeneratePage() {
     setErrorCode(null)
     setProgress(0)
     presentationForm.reset({
-      subject: 'math',
-      grade: 3,
+      subject: '' as any,
+      grade: 0 as any,
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
@@ -394,8 +418,20 @@ export default function GeneratePage() {
             </button>
           </div>
 
-          {/* Generations counter with plus button */}
+          {/* Sparkle CTA + Generations counter */}
           {user && <div className="flex items-center gap-1.5">
+            {/* Sparkle Tariff button */}
+            <button
+              type="button"
+              onClick={() => setShowBuyModal(true)}
+              className="sparkle-btn flex items-center gap-1.5 px-3 py-2 sm:px-4 text-white text-sm font-semibold rounded-full"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L14.09 8.26L20.5 9.27L15.75 14.14L16.18 20.5L12 17.77L7.82 20.5L8.25 14.14L3.5 9.27L9.91 8.26L12 2Z" />
+              </svg>
+              <span className="hidden sm:inline">Тарифы</span>
+            </button>
+
             <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-4 py-2 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
               <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
@@ -427,9 +463,10 @@ export default function GeneratePage() {
             generationCost={generationCost}
             showAdvanced={showAdvanced}
             isPending={mutation.isPending}
-            isDisabled={mutation.isPending || (!!user && generationsLeft < generationCost)}
+            isDisabled={mutation.isPending}
             errorText={errorText}
             errorCode={errorCode}
+            generationsExhausted={isGenerationsExhausted}
             onSubjectChange={handleSubjectChange}
             onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
             onToggleTaskType={toggleTaskType}
@@ -461,9 +498,10 @@ export default function GeneratePage() {
                 availableGrades={availablePresentationGrades}
                 presentationCost={presentationCost}
                 isPending={presentationMutation.isPending}
-                isDisabled={presentationMutation.isPending || (!!user && generationsLeft < presentationCost)}
+                isDisabled={presentationMutation.isPending}
                 errorText={errorText}
                 errorCode={errorCode}
+                generationsExhausted={isGenerationsExhausted}
                 onSubjectChange={handlePresentationSubjectChange}
                 onOpenBuyModal={() => setShowBuyModal(true)}
                 onSubmit={onPresentationSubmit}
@@ -480,6 +518,47 @@ export default function GeneratePage() {
       {/* Loading Overlay */}
       {isLoading && (
         <GenerationLoadingOverlay mode={mode} progress={progress} />
+      )}
+
+      {/* Low generations warning modal */}
+      {showLowGenWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowLowGenWarning(false)} />
+          <div className="relative bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-purple-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-100 rounded-full mb-4">
+                <svg className="w-7 h-7 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">
+                Генерации заканчиваются!
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">
+                У вас {generationsLeft === 1 ? 'осталась' : 'осталось'}{' '}
+                <span className="font-bold text-amber-600">{generationsLeft}</span>{' '}
+                {generationsLeft === 1 ? 'генерация' : 'генерации'}.
+                Пополните баланс, чтобы продолжить создание материалов.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLowGenWarning(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  Позже
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowLowGenWarning(false); setShowBuyModal(true) }}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#8C52FF] to-[#A855F7] rounded-xl hover:shadow-lg transition-all"
+                >
+                  Посмотреть тарифы
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Subscription Plans Modal */}
