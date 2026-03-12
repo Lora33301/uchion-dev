@@ -403,7 +403,7 @@ export default function GeneratePage() {
                   : 'text-slate-600 hover:text-slate-800'
               }`}
             >
-              Рабочий лист
+              Задания
             </button>
             <button
               type="button"
