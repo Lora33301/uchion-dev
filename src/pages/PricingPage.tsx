@@ -54,7 +54,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
     { text: 'Стили оформления PDF', available: false },
   ],
   starter: [
-    { text: '25 генераций в месяц', available: true },
+    { text: '30 генераций в месяц', available: true },
     { text: 'Генерация рабочих листов', available: true },
     { text: '5 типов заданий', available: true },
     { text: '5 папок, до 20 листов', available: true },

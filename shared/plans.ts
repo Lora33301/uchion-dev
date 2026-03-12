@@ -45,8 +45,8 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
   starter: {
     id: 'starter',
     name: 'Начинающий',
-    price: 390,
-    generationsPerPeriod: 25,
+    price: 590,
+    generationsPerPeriod: 30,
     isRecurring: true,
     folders: 5,
     paidModel: true,
@@ -79,7 +79,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, PlanConfig> = {
   expert: {
     id: 'expert',
     name: 'Эксперт',
-    price: 1690,
+    price: 1590,
     generationsPerPeriod: 120,
     isRecurring: true,
     folders: 10,

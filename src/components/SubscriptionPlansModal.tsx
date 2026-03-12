@@ -64,7 +64,7 @@ interface PlanFeature {
 const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
   free: [],
   starter: [
-    { text: '25 генераций в месяц', available: true, highlight: true },
+    { text: '30 генераций в месяц', available: true, highlight: true },
     { text: 'PDF без водяного знака', available: true },
     { text: 'До 3 перегенераций/день', available: true },
     { text: 'Стили оформления PDF', available: true },
@@ -100,7 +100,7 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
 
 const PLAN_GENERATIONS: Record<SubscriptionPlanId, number> = {
   free: 5,
-  starter: 25,
+  starter: 30,
   teacher: 60,
   expert: 120,
 }

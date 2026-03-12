@@ -115,9 +115,9 @@ throw ApiError.internal('Server error')
 | Plan | Display Name | Price | Gens/mo | Folders | Regen/day | PDF Styles | Model |
 |------|-------------|-------|---------|---------|-----------|------------|-------|
 | free | Бесплатный | 0 | 5 (one-time) | 2 | 0 | standard only | gpt-4.1 |
-| starter | Начинающий | 390/mo | 25 | 5 | 3 | all | gpt-4.1 |
+| starter | Начинающий | 590/mo | 30 | 5 | 3 | all | gpt-4.1 |
 | teacher | Методист | 890/mo | 60 | 10 | 6 | all | gpt-4.1 |
-| expert | Эксперт | 1690/mo | 120 | 10 | 10 | all | gpt-4.1 |
+| expert | Эксперт | 1590/mo | 120 | 10 | 10 | all | gpt-4.1 |
 
 Regeneration is **free** (does not deduct from `generationsLeft`), controlled only by daily regen limit.
 
