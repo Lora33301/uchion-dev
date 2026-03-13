@@ -5,7 +5,7 @@ import privacyData from '../data/privacy.json'
 import consentData from '../data/consent.json'
 import consentAdsData from '../data/consent_ads.json'
 
-type Paragraph = { t: string; b: boolean; l?: boolean }
+type Paragraph = { t: string; b: boolean; l?: boolean; n?: number; indent?: boolean }
 
 const docs: Record<string, { title: string; data: Paragraph[] }> = {
   'user-agreement': {
@@ -17,7 +17,7 @@ const docs: Record<string, { title: string; data: Paragraph[] }> = {
     data: privacyData as Paragraph[],
   },
   'data-consent': {
-    title: 'Согласие на обработку данных',
+    title: 'Согласие на обработку персональных данных',
     data: consentData as Paragraph[],
   },
   'ads-consent': {
@@ -41,6 +41,23 @@ export default function LegalDocPage() {
           <div className="text-sm text-slate-700 leading-relaxed">
             {doc.data.map((p, i) => {
               if (!p.t) return <div key={i} className="h-3" />
+
+              if (p.n) {
+                return (
+                  <p key={i} className={`pl-8 relative mb-1 ${p.b ? 'font-semibold text-slate-900' : ''}`}>
+                    <span className="absolute left-0 text-slate-500">{p.n}.</span>
+                    {p.t}
+                  </p>
+                )
+              }
+
+              if (p.indent) {
+                return (
+                  <p key={i} className="pl-8 mb-1">
+                    {p.t}
+                  </p>
+                )
+              }
 
               if (p.l) {
                 return (
