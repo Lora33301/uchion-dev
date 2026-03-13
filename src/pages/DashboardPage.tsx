@@ -119,7 +119,7 @@ export default function DashboardPage() {
     if (bonusClaiming) return
     setBonusClaiming(true)
     // Open Telegram channel
-    window.open('https://t.me/ychion_ru', '_blank')
+    window.open('https://vk.ru/app5898182_-236486168#s=3611961&utm_source=%D0%9E%D1%84%D0%B8%D1%86%D0%B8%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9+%D1%81%D0%B0%D0%B9%D1%82', '_blank')
     try {
       const res = await fetch('/api/auth/claim-telegram-bonus', {
         method: 'POST',
