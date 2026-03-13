@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import CookieConsent from './components/CookieConsent'
+import GlobalUpsellModal from './components/GlobalUpsellModal'
 import Footer from './components/Footer'
 import GeneratePage from './pages/GeneratePage'
 
@@ -92,6 +93,7 @@ export default function App() {
       </div>
       {!isAdmin && <Footer />}
       <CookieConsent />
+      <GlobalUpsellModal />
     </div>
   )
 }

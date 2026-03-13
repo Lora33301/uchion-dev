@@ -83,38 +83,6 @@ export default function DashboardPage() {
   const [showBuyModal, setShowBuyModal] = useState(false)
   const [bonusClaiming, setBonusClaiming] = useState(false)
 
-  // Auto-show subscription modal when generations are running low (2 left) or exhausted (0 left)
-  useEffect(() => {
-    if (!user) return
-    const gens = user.generationsLeft
-    const keyPrefix = `uchion_upsell_${user.id}`
-
-    // Reset flags when user has plenty of generations again (bought more)
-    if (gens > 2) {
-      localStorage.removeItem(`${keyPrefix}_2`)
-      localStorage.removeItem(`${keyPrefix}_0`)
-      return
-    }
-
-    // Threshold: 0 generations left (takes priority)
-    if (gens === 0 && !localStorage.getItem(`${keyPrefix}_0`)) {
-      const timer = setTimeout(() => {
-        setShowBuyModal(true)
-        localStorage.setItem(`${keyPrefix}_0`, '1')
-      }, 800)
-      return () => clearTimeout(timer)
-    }
-
-    // Threshold: 1-2 generations left
-    if (gens > 0 && gens <= 2 && !localStorage.getItem(`${keyPrefix}_2`)) {
-      const timer = setTimeout(() => {
-        setShowBuyModal(true)
-        localStorage.setItem(`${keyPrefix}_2`, '1')
-      }, 800)
-      return () => clearTimeout(timer)
-    }
-  }, [user])
-
   const handleClaimTelegramBonus = useCallback(async () => {
     if (bonusClaiming) return
     setBonusClaiming(true)
