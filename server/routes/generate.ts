@@ -546,8 +546,14 @@ router.post('/rebuild-pdf', optionalAuth(async (req: Request, res: Response) => 
     const validTemplates: PdfTemplateId[] = ['standard', 'rainbow', 'academic']
     const templateId: PdfTemplateId = validTemplates.includes(rawTemplateId) ? rawTemplateId : 'standard'
 
-    const parse = WorksheetSchema.safeParse(worksheetData)
+    // pdfBase64 is optional: SavedWorksheetPage strips it to save bandwidth,
+    // and rebuild-pdf doesn't need the old PDF to build a new one
+    const RebuildPdfSchema = WorksheetSchema.extend({
+      pdfBase64: z.string().optional().default(''),
+    })
+    const parse = RebuildPdfSchema.safeParse(worksheetData)
     if (!parse.success) {
+      console.error('[rebuild-pdf] Validation failed:', JSON.stringify(parse.error.issues))
       return res.status(400).json({ status: 'error', code: 'INVALID_INPUT', message: 'Некорректные данные листа.' })
     }
 
