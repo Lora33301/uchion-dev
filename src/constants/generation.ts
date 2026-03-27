@@ -21,10 +21,10 @@ export interface FormatVariant {
 // =============================================================================
 
 export const SUBJECTS: { value: Subject; label: string; grades: number[] }[] = [
-  { value: 'math', label: 'Математика', grades: [1, 2, 3, 4, 5, 6] },
+  { value: 'russian', label: 'Русский язык', grades: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
   { value: 'algebra', label: 'Алгебра', grades: [7, 8, 9, 10, 11] },
   { value: 'geometry', label: 'Геометрия', grades: [7, 8, 9, 10, 11] },
-  { value: 'russian', label: 'Русский язык', grades: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+  { value: 'math', label: 'Математика', grades: [1, 2, 3, 4, 5, 6] },
 ]
 
 export const DIFFICULTIES: { value: DifficultyLevel; label: string; description: string }[] = [

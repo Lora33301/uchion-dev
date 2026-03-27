@@ -26,6 +26,50 @@ import type { AIProvider, GenerateParams, GeneratePresentationParams, Regenerate
 import { getCircuitBreaker } from './circuit-breaker.js'
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Shuffle the right column of a matching task so answers aren't in order.
+ * Updates correctPairs to reflect the new positions.
+ */
+function shuffleMatchingRightColumn(task: GeneratedTask): void {
+  if (task.type !== 'matching') return
+  const right = task.rightColumn
+  const pairs = task.correctPairs
+  if (!right || !pairs || right.length <= 1) return
+
+  // Fisher-Yates shuffle on index array
+  const indices = right.map((_, i) => i)
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[indices[i], indices[j]] = [indices[j], indices[i]]
+  }
+
+  // If shuffle produced identity permutation, swap first two
+  if (indices.every((val, idx) => val === idx)) {
+    ;[indices[0], indices[1]] = [indices[1], indices[0]]
+  }
+
+  // Build oldIndex -> newIndex mapping
+  const newPosition = new Map<number, number>()
+  indices.forEach((oldIdx, newIdx) => {
+    newPosition.set(oldIdx, newIdx)
+  })
+
+  // Apply shuffle to right column
+  task.rightColumn = indices.map(oldIdx => right[oldIdx])
+
+  // Update correctPairs with new right indices
+  task.correctPairs = pairs.map(([l, r]) => [l, newPosition.get(r)!] as [number, number])
+}
+
+/** Format matching answer using Cyrillic letters (а, б, в, г) matching the display */
+function formatMatchingAnswer(pairs: [number, number][]): string {
+  return pairs.map(([l, r]) => `${l + 1} — ${String.fromCharCode(1072 + r)}`).join(', ')
+}
+
+// =============================================================================
 // OpenAIProvider - real generation via AI
 // =============================================================================
 
@@ -393,6 +437,8 @@ export class OpenAIProvider implements AIProvider {
       if (task.type === 'open_question') {
         text = task.question || ''
       } else if (task.type === 'matching') {
+        // Shuffle right column so answers aren't in obvious order
+        shuffleMatchingRightColumn(task)
         const matchingData = {
           type: 'matching',
           instruction: task.instruction || 'Соотнеси элементы',
@@ -416,7 +462,7 @@ export class OpenAIProvider implements AIProvider {
         answer = task.correctAnswer || ''
       } else if (task.type === 'matching') {
         const pairs = task.correctPairs || []
-        answer = pairs.map(([l, r]) => `${l + 1}-${String.fromCharCode(65 + r)}`).join(', ')
+        answer = formatMatchingAnswer(pairs)
       } else if (task.type === 'fill_blank') {
         const blanks = task.blanks || []
         answer = blanks.map(b => `(${b.position}) ${b.correctAnswer}`).join('; ')
@@ -515,6 +561,8 @@ export class OpenAIProvider implements AIProvider {
       text = task.question || ''
       answer = task.correctAnswer || ''
     } else if (task.type === 'matching') {
+      // Shuffle right column so answers aren't in obvious order
+      shuffleMatchingRightColumn(task)
       const matchingData = {
         type: 'matching',
         instruction: task.instruction || 'Соотнеси элементы',
@@ -523,7 +571,7 @@ export class OpenAIProvider implements AIProvider {
       }
       text = `<!--MATCHING:${JSON.stringify(matchingData)}-->`
       const pairs = task.correctPairs || []
-      answer = pairs.map(([l, r]) => `${l + 1}-${String.fromCharCode(65 + r)}`).join(', ')
+      answer = formatMatchingAnswer(pairs)
     } else if (task.type === 'fill_blank') {
       text = task.textWithBlanks || ''
       const blanks = task.blanks || []
