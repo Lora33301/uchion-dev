@@ -5,12 +5,51 @@ import { paymentIntents, subscriptions, users } from '../../db/schema.js'
 import { isPaidPlan, getPlanConfig } from '../../shared/plans.js'
 import { invalidateUserCache } from '../lib/user-cache.js'
 import { sendAdminAlert } from '../../api/_lib/telegram/bot.js'
+import { createProdamusSignature } from '../lib/prodamus.js'
 import {
+  PRODAMUS_SECRET,
   PRODAMUS_SUBSCRIPTION_IDS,
+  PRODAMUS_PAYFORM_URL,
   type ProdamusWebhookPayload,
   hashPayload,
   tryMarkEventProcessed,
 } from './billing-helpers.js'
+
+// ==================== PRODAMUS DEACTIVATION ====================
+
+/**
+ * Best-effort attempt to deactivate a subscription on Prodamus side.
+ * Used as a retry when auto-renewal arrives for a locally-cancelled subscription.
+ */
+async function tryDeactivateOnProdamus(
+  prodamusSubId: string,
+  prodamusProfileId: string
+): Promise<boolean> {
+  if (!PRODAMUS_SECRET || !PRODAMUS_PAYFORM_URL || !prodamusSubId || !prodamusProfileId) {
+    console.warn(`[Subscription] Cannot deactivate on Prodamus: missing config or IDs (subId=${prodamusSubId}, profileId=${prodamusProfileId})`)
+    return false
+  }
+
+  const deactivateData: Record<string, unknown> = {
+    subscription: prodamusSubId,
+    profile_id: prodamusProfileId,
+    do: 'deactivate',
+  }
+  const signature = createProdamusSignature(deactivateData, PRODAMUS_SECRET)
+  deactivateData.signature = signature
+
+  const baseUrl = PRODAMUS_PAYFORM_URL.endsWith('/') ? PRODAMUS_PAYFORM_URL : PRODAMUS_PAYFORM_URL + '/'
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(deactivateData)) {
+    params.append(key, String(value))
+  }
+
+  console.log(`[Subscription] Retrying deactivation on Prodamus: subId=${prodamusSubId}, profileId=${prodamusProfileId}`)
+  const response = await fetch(`${baseUrl}?${params.toString()}`)
+  const responseText = await response.text().catch(() => '')
+  console.log(`[Subscription] Prodamus re-deactivation response: ${response.status}, body: ${responseText.slice(0, 200)}`)
+  return response.ok
+}
 
 // ==================== USER RESOLUTION ====================
 
@@ -438,6 +477,22 @@ export async function handleSubscriptionWebhook(
   const nextPaymentDate = sub.date_next_payment ? new Date(sub.date_next_payment) : null
   const periodEnd = nextPaymentDate || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days default
 
+  // ==================== CHECK LOCAL CANCELLATION ====================
+
+  // Load existing subscription to check if user cancelled locally
+  const [existingSubscription] = await db
+    .select({
+      id: subscriptions.id,
+      status: subscriptions.status,
+      cancelledAt: subscriptions.cancelledAt,
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1)
+
+  const isCancelledLocally = existingSubscription?.cancelledAt != null
+    || existingSubscription?.status === 'cancelled'
+
   // ==================== EVENT ROUTING ====================
 
   const isSuccess = paymentStatus === 'success'
@@ -449,6 +504,23 @@ export async function handleSubscriptionWebhook(
   }
 
   if (isSuccess && isAutopayment) {
+    // Guard: if subscription was cancelled locally, do NOT re-activate
+    if (isCancelledLocally) {
+      console.warn(`[Subscription Webhook] BLOCKED auto-renewal for CANCELLED subscription! user=${userId}, plan=${plan}, profileId=${prodamusProfileId}`)
+
+      // Try to deactivate on Prodamus side again
+      tryDeactivateOnProdamus(prodamusSubId, prodamusProfileId).catch(err =>
+        console.error('[Subscription Webhook] Re-deactivation attempt failed:', err)
+      )
+
+      sendAdminAlert({
+        message: `ВНИМАНИЕ: Продамус списал деньги за отменённую подписку!\nПользователь: ${user.email}\nТариф: ${plan}\nprofileId: ${prodamusProfileId}\nsubId: ${prodamusSubId}\nНеобходимо вернуть деньги вручную через панель Продамуса.`,
+        level: 'warning',
+      }).catch(() => {})
+
+      return res.status(200).json({ status: 'renewal_blocked_cancelled' })
+    }
+
     // AUTO-RENEWAL (successful recurring payment)
     const result = await handleAutoRenewal(userId, plan, user, now, periodEnd)
     return res.status(200).json(result)

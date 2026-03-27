@@ -404,6 +404,7 @@ router.post('/cancel-subscription', withAuth(async (req, res) => {
         plan: subscriptions.plan,
         status: subscriptions.status,
         prodamusSubscriptionId: subscriptions.prodamusSubscriptionId,
+        prodamusProfileId: subscriptions.prodamusProfileId,
         currentPeriodEnd: subscriptions.currentPeriodEnd,
         cancelledAt: subscriptions.cancelledAt,
       })
@@ -426,11 +427,13 @@ router.post('/cancel-subscription', withAuth(async (req, res) => {
     const now = new Date()
 
     // Try to deactivate via Prodamus API (best effort)
+    // Prodamus requires both `subscription` (product ID) and `profile_id` (user instance)
     let prodamusDeactivated = false
-    if (PRODAMUS_SECRET && PRODAMUS_PAYFORM_URL && sub.prodamusSubscriptionId) {
+    if (PRODAMUS_SECRET && PRODAMUS_PAYFORM_URL && sub.prodamusSubscriptionId && sub.prodamusProfileId) {
       try {
         const deactivateData: Record<string, unknown> = {
           subscription: sub.prodamusSubscriptionId,
+          profile_id: sub.prodamusProfileId,
           do: 'deactivate',
         }
         const deactivateSignature = (await import('../lib/prodamus.js')).createProdamusSignature(
@@ -445,12 +448,16 @@ router.post('/cancel-subscription', withAuth(async (req, res) => {
           params.append(key, String(value))
         }
 
+        console.log(`[Subscription] Deactivating via Prodamus: subId=${sub.prodamusSubscriptionId}, profileId=${sub.prodamusProfileId}`)
         const response = await fetch(`${baseUrl}?${params.toString()}`)
+        const responseText = await response.text().catch(() => '')
         prodamusDeactivated = response.ok
-        console.log(`[Subscription] Prodamus deactivation response: ${response.status}`)
+        console.log(`[Subscription] Prodamus deactivation response: ${response.status}, body: ${responseText.slice(0, 200)}`)
       } catch (err) {
-        console.warn('[Subscription] Prodamus deactivation failed (will handle via period end):', err)
+        console.warn('[Subscription] Prodamus deactivation failed:', err)
       }
+    } else if (!sub.prodamusProfileId) {
+      console.warn(`[Subscription] Cannot deactivate on Prodamus: missing profile_id for user ${userId}`)
     }
 
     // Mark as cancelled locally (subscription stays active until period end)
@@ -466,9 +473,15 @@ router.post('/cancel-subscription', withAuth(async (req, res) => {
     // Do NOT change user's subscriptionPlan or generationsLeft yet
     // They keep access until period end
 
+    const deactivationStatus = prodamusDeactivated
+      ? 'OK'
+      : !sub.prodamusProfileId
+        ? 'НЕТ profile_id — деактивация невозможна!'
+        : 'не удалось'
+
     sendAdminAlert({
-      message: `Подписка отменена: ${sub.plan}\nПользователь: ${req.user.email}\nАктивна до: ${sub.currentPeriodEnd?.toISOString() || 'N/A'}\nProdamus деактивация: ${prodamusDeactivated ? 'OK' : 'не удалось'}`,
-      level: 'info',
+      message: `Подписка отменена: ${sub.plan}\nПользователь: ${req.user.email}\nАктивна до: ${sub.currentPeriodEnd?.toISOString() || 'N/A'}\nProdamus деактивация: ${deactivationStatus}`,
+      level: prodamusDeactivated ? 'info' : 'warning',
     }).catch(err => console.error('[Subscription] Alert error:', err))
 
     return res.status(200).json({
