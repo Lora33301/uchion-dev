@@ -260,6 +260,21 @@ async function start() {
     cleanupExpiredTokens().then(() => console.log('[Startup] Initial token cleanup done')).catch(() => {})
   ).catch(() => {})
 
+  // Periodically expire overdue subscriptions (every 1 hour)
+  // Safety net: if Prodamus webhook never arrived, downgrade after 1-day grace period
+  const ONE_HOUR = 60 * 60 * 1000
+  const subscriptionExpiryInterval = setInterval(async () => {
+    try {
+      const { expireOverdueSubscriptions } = await import('./server/lib/subscription-expiry.js')
+      const count = await expireOverdueSubscriptions()
+      if (count > 0) {
+        console.log(`[Cron] Expired ${count} overdue subscription(s)`)
+      }
+    } catch (err) {
+      console.error('[Cron] Failed to check subscription expiry:', err)
+    }
+  }, ONE_HOUR)
+
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
@@ -284,6 +299,7 @@ async function start() {
   const shutdown = async () => {
     console.log('[Shutdown] Cleaning up...')
     clearInterval(tokenCleanupInterval)
+    clearInterval(subscriptionExpiryInterval)
     await closeQueues()
     const { closeBrowserPool } = await import('./api/_lib/browser-pool.js')
     await closeBrowserPool()

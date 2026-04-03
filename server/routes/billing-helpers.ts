@@ -1,4 +1,5 @@
 import * as crypto from 'crypto'
+import { eq, and } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { webhookEvents } from '../../db/schema.js'
 import type { PaidPlanId } from '../../shared/plans.js'
@@ -132,5 +133,26 @@ export async function tryMarkEventProcessed(
     }
     // Re-throw other errors
     throw error
+  }
+}
+
+/**
+ * Remove a previously marked webhook event so it can be retried.
+ * Used when processing fails after tryMarkEventProcessed succeeded.
+ */
+export async function tryUnmarkEventProcessed(
+  provider: string,
+  eventKey: string
+): Promise<void> {
+  try {
+    await db.delete(webhookEvents).where(
+      and(
+        eq(webhookEvents.provider, provider),
+        eq(webhookEvents.eventKey, eventKey)
+      )
+    )
+    console.log(`[Webhook] Unmarked event for retry: ${provider}:${eventKey}`)
+  } catch (error) {
+    console.error(`[Webhook] Failed to unmark event ${provider}:${eventKey}:`, error)
   }
 }

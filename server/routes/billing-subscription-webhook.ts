@@ -13,6 +13,7 @@ import {
   type ProdamusWebhookPayload,
   hashPayload,
   tryMarkEventProcessed,
+  tryUnmarkEventProcessed,
 } from './billing-helpers.js'
 
 // ==================== PRODAMUS DEACTIVATION ====================
@@ -436,6 +437,33 @@ export async function handleSubscriptionWebhook(
     return res.status(200).json({ status: 'already_processed' })
   }
 
+  // Wrap processing in try/catch: if anything fails after marking the event,
+  // unmark it so Prodamus can retry the webhook
+  try {
+    return await processSubscriptionEvent(payload, sub, userId, planFromParam, prodamusSubId, prodamusProfileId, paymentStatus, isAutopayment, subscriptionInactive, res)
+  } catch (error) {
+    // Unmark the event so it can be retried on next webhook
+    await tryUnmarkEventProcessed('prodamus_subscription', eventKey)
+    throw error // Re-throw so the outer handler returns 500 and Prodamus retries
+  }
+}
+
+/**
+ * Inner processing logic, extracted so handleSubscriptionWebhook can
+ * unmark the idempotency record if this throws.
+ */
+async function processSubscriptionEvent(
+  payload: ProdamusWebhookPayload,
+  sub: NonNullable<ProdamusWebhookPayload['subscription']>,
+  userId: string | undefined,
+  planFromParam: string | undefined,
+  prodamusSubId: string,
+  prodamusProfileId: string,
+  paymentStatus: string,
+  isAutopayment: boolean,
+  subscriptionInactive: boolean,
+  res: Response
+): Promise<Response> {
   console.log(`[Subscription Webhook] Event: status=${paymentStatus}, autopayment=${isAutopayment}, active_user=${sub.active_user}, active_manager=${sub.active_manager}, payment_num=${sub.payment_num}, subId=${prodamusSubId}, profileId=${prodamusProfileId}, user=${userId}`)
 
   // Validate userId resolved

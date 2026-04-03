@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
-import { users } from '../../db/schema.js'
+import { users, subscriptions } from '../../db/schema.js'
+import { isPaidPlan, getPlanConfig } from '../../shared/plans.js'
 import { invalidateUserCache } from './user-cache.js'
 
 // ==================== PRODUCT CATALOG ====================
@@ -64,6 +65,67 @@ export async function applyProductEffect(
   userId: string,
   productCode: string
 ): Promise<{ success: boolean; message: string }> {
+  // Check for subscription product (format: sub_<plan>)
+  const subMatch = productCode.match(/^sub_(\w+)$/)
+  if (subMatch) {
+    const plan = subMatch[1]
+    if (!isPaidPlan(plan)) {
+      return { success: false, message: `Invalid subscription plan: ${plan}` }
+    }
+    const planConfig = getPlanConfig(plan)
+    const now = new Date()
+    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days
+
+    await db.transaction(async (tx) => {
+      // Upsert subscription (userId is unique in subscriptions table)
+      const [existing] = await tx
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, userId))
+        .limit(1)
+
+      if (existing) {
+        await tx
+          .update(subscriptions)
+          .set({
+            plan,
+            status: 'active',
+            generationsPerPeriod: planConfig.generationsPerPeriod,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            cancelledAt: null,
+            updatedAt: now,
+          })
+          .where(eq(subscriptions.id, existing.id))
+      } else {
+        await tx
+          .insert(subscriptions)
+          .values({
+            userId,
+            plan,
+            status: 'active',
+            generationsPerPeriod: planConfig.generationsPerPeriod,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+          })
+      }
+
+      // Update user: set plan + reset generations to plan limit
+      await tx
+        .update(users)
+        .set({
+          subscriptionPlan: plan,
+          generationsLeft: planConfig.generationsPerPeriod,
+          updatedAt: now,
+        })
+        .where(eq(users.id, userId))
+    })
+
+    await invalidateUserCache(userId)
+    console.log(`[Billing] Activated subscription ${plan} (${planConfig.generationsPerPeriod} gens) for user ${userId}`)
+    return { success: true, message: `Activated ${plan} subscription with ${planConfig.generationsPerPeriod} generations` }
+  }
+
   // Check for dynamic generations product (format: generations_dynamic_N)
   const dynamicMatch = productCode.match(/^generations_dynamic_(\d+)$/)
   if (dynamicMatch) {
