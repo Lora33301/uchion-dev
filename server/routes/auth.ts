@@ -76,7 +76,7 @@ interface FindOrCreateUserParams {
  * Handles provider linking (Yandex→email account) and consent/emailVerified updates.
  * Throws ApiError.forbidden if user is blocked (soft-deleted).
  */
-async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: string; email: string; role: string }> {
+async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: string; email: string; role: 'user' | 'admin' }> {
   const [existing] = await db
     .select({
       id: users.id,
@@ -455,7 +455,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
       email: oauthUser.email.toLowerCase(),
       provider: 'yandex',
       providerId: oauthUser.providerId,
-      name: oauthUser.name,
+      name: oauthUser.name || oauthUser.email.split('@')[0],
       image: oauthUser.image,
       mailingConsent: !!mailingConsent,
     })
