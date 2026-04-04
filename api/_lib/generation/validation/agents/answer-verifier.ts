@@ -156,7 +156,7 @@ ${tasksText}
     const completion = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: userPrompt }],
-      max_tokens: 8000, // Gemini counts thinking tokens as output; need headroom
+      max_tokens: 16000, // Gemini counts thinking tokens as output; need headroom for 10-15 tasks
       temperature: 0.1,
       ...({ reasoning } as Record<string, unknown>),
     })
@@ -184,10 +184,20 @@ ${tasksText}
       return emptyResult(agentName, 'JSON_PARSE_ERROR')
     }
     const llmTasks = parsed.tasks || []
+    const resultByIndex = new Map(llmTasks.map(t => [t.index, t]))
 
-    const taskResults: AgentTaskResult[] = llmTasks.map((t) => {
+    const missingCount = tasks.length - resultByIndex.size
+    if (missingCount > 0) {
+      console.warn(`[${agentName}] ${missingCount} tasks missing from verifier response, treating as ok`)
+    }
+
+    const taskResults: AgentTaskResult[] = tasks.map((_, i) => {
+      const t = resultByIndex.get(i)
+      if (!t || t.status !== 'error') {
+        return { taskIndex: i, status: 'ok' as const, issues: [] }
+      }
       const issues: AgentIssue[] = []
-      if (t.status === 'error' && t.issue) {
+      if (t.issue) {
         const code = t.code || 'WRONG_ANSWER'
         const suggestion = code === 'MULTIPLE_CORRECT'
           ? 'Переформулировать задание — несколько вариантов могут быть правильными'
@@ -195,8 +205,8 @@ ${tasksText}
         issues.push({ code, message: t.issue, suggestion })
       }
       return {
-        taskIndex: t.index,
-        status: t.status === 'error' ? 'error' as const : 'ok' as const,
+        taskIndex: i,
+        status: 'error' as const,
         issues,
       }
     })
