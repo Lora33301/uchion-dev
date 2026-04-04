@@ -1,4 +1,4 @@
-import type { Worksheet, Subject, TestQuestion, Assignment, PresentationStructure } from '../../../shared/types.js'
+import type { Worksheet, PresentationStructure } from '../../../shared/types.js'
 import OpenAI from 'openai'
 import {
   buildSystemPrompt,
@@ -23,51 +23,9 @@ import { getPresentationSubjectConfig } from '../generation/config/presentations
 import { getGenerationModel } from '../ai-models.js'
 import { trackFromContext } from '../ai-usage.js'
 import type { AIProvider, GenerateParams, GeneratePresentationParams, RegenerateTaskParams, RegenerateTaskResult, GeneratedTask, GeneratedWorksheetJson } from '../ai-provider.js'
-import { getCircuitBreaker } from './circuit-breaker.js'
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/**
- * Shuffle the right column of a matching task so answers aren't in order.
- * Updates correctPairs to reflect the new positions.
- */
-function shuffleMatchingRightColumn(task: GeneratedTask): void {
-  if (task.type !== 'matching') return
-  const right = task.rightColumn
-  const pairs = task.correctPairs
-  if (!right || !pairs || right.length <= 1) return
-
-  // Fisher-Yates shuffle on index array
-  const indices = right.map((_, i) => i)
-  for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[indices[i], indices[j]] = [indices[j], indices[i]]
-  }
-
-  // If shuffle produced identity permutation, swap first two
-  if (indices.every((val, idx) => val === idx)) {
-    ;[indices[0], indices[1]] = [indices[1], indices[0]]
-  }
-
-  // Build oldIndex -> newIndex mapping
-  const newPosition = new Map<number, number>()
-  indices.forEach((oldIdx, newIdx) => {
-    newPosition.set(oldIdx, newIdx)
-  })
-
-  // Apply shuffle to right column
-  task.rightColumn = indices.map(oldIdx => right[oldIdx])
-
-  // Update correctPairs with new right indices
-  task.correctPairs = pairs.map(([l, r]) => [l, newPosition.get(r)!] as [number, number])
-}
-
-/** Format matching answer using Cyrillic letters (а, б, в, г) matching the display */
-function formatMatchingAnswer(pairs: [number, number][]): string {
-  return pairs.map(([l, r]) => `${l + 1} — ${String.fromCharCode(1072 + r)}`).join(', ')
-}
+import { parseGeneratedJson } from './json-repair.js'
+import { splitTasks, retryMissingTasks, backfillTasks } from './task-retry.js'
+import { convertToWorksheet, convertSingleTask } from './worksheet-converter.js'
 
 // =============================================================================
 // OpenAIProvider - real generation via AI
@@ -150,74 +108,7 @@ export class OpenAIProvider implements AIProvider {
 
     let generatedJson: GeneratedWorksheetJson
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        console.error('[УчиОн] No JSON found in response')
-        throw new Error('AI_ERROR')
-      }
-      let jsonStr = jsonMatch[0]
-
-      // Try to fix truncated JSON (common with reasoning models)
-      try {
-        generatedJson = JSON.parse(jsonStr)
-      } catch {
-        console.warn('[УчиОн] JSON parse failed, attempting to fix truncated JSON...')
-
-        // Strategy: find the last complete task object and cut everything after it.
-        // A complete task ends with "}" followed by "," or "]".
-        // We try progressively: clean cut -> bracket closing -> regex extraction.
-        generatedJson = null as unknown as GeneratedWorksheetJson
-
-        // Attempt 1: Cut at last complete task object boundary
-        const lastCompleteObj = jsonStr.lastIndexOf('},')
-        const lastCompleteArr = jsonStr.lastIndexOf('}]')
-        const lastComplete = Math.max(lastCompleteObj, lastCompleteArr)
-        if (lastComplete > 0) {
-          const cut = jsonStr.substring(0, lastComplete + 1) + ']}'
-          try {
-            generatedJson = JSON.parse(cut)
-            console.log('[УчиОн] Fixed by cutting at last complete task (char', lastComplete, ')')
-          } catch { /* try next strategy */ }
-        }
-
-        // Attempt 2: Close unclosed brackets/braces
-        if (!generatedJson) {
-          let fixed = jsonStr.replace(/,\s*$/, '')
-          const openBrackets = (fixed.match(/\[/g) || []).length
-          const closeBrackets = (fixed.match(/\]/g) || []).length
-          const openBraces = (fixed.match(/\{/g) || []).length
-          const closeBraces = (fixed.match(/\}/g) || []).length
-
-          for (let i = 0; i < openBrackets - closeBrackets; i++) fixed += ']'
-          for (let i = 0; i < openBraces - closeBraces; i++) fixed += '}'
-
-          try {
-            generatedJson = JSON.parse(fixed)
-            console.log('[УчиОн] Fixed by closing brackets')
-          } catch { /* try next strategy */ }
-        }
-
-        // Attempt 3: Extract individual task objects via regex
-        if (!generatedJson) {
-          console.warn('[УчиОн] Bracket fix failed, extracting tasks via regex...')
-          const taskRegex = /\{[^{}]*"type"\s*:\s*"[^"]+?"[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
-          const taskMatches = jsonStr.match(taskRegex) || []
-          if (taskMatches.length > 0) {
-            const tasks: GeneratedTask[] = []
-            for (const m of taskMatches) {
-              try { tasks.push(JSON.parse(m)) } catch { /* skip broken */ }
-            }
-            if (tasks.length > 0) {
-              generatedJson = { tasks }
-              console.log(`[УчиОн] Extracted ${tasks.length} tasks via regex`)
-            }
-          }
-        }
-
-        if (!generatedJson) {
-          throw new Error('Could not parse or fix JSON')
-        }
-      }
+      generatedJson = parseGeneratedJson(content)
     } catch (e) {
       console.error('[УчиОн] JSON parse error:', e)
       throw new Error('AI_ERROR')
@@ -225,87 +116,21 @@ export class OpenAIProvider implements AIProvider {
 
     onProgress?.(75)
 
-    let tasks = generatedJson.tasks || []
+    const tasks = generatedJson.tasks || []
     console.log('[УчиОн] Generated tasks count:', tasks.length, 'Expected:', totalTasks)
 
-    let testTasks: GeneratedTask[] = []
-    let openTasksList: GeneratedTask[] = []
-
-    for (const task of tasks) {
-      if (task.type === 'single_choice' || task.type === 'multiple_choice') {
-        testTasks.push(task)
-      } else {
-        openTasksList.push(task)
-      }
-    }
-
-    console.log('[УчиОн] Split: testTasks=', testTasks.length, 'openTasksList=', openTasksList.length)
+    const split = splitTasks(tasks)
+    console.log('[УчиОн] Split: testTasks=', split.testTasks.length, 'openTasksList=', split.openTasksList.length)
     console.log('[УчиОн] Targets: testQuestions=', testQuestions, 'openTasks=', openTasks)
 
-    // RETRY: Generate missing tasks (up to 3 attempts) with exponential backoff
-    // Circuit breaker prevents retries if AI provider is systematically failing
-    const circuitBreaker = getCircuitBreaker()
-    const MAX_RETRIES = 3
+    // Retry missing tasks with exponential backoff + circuit breaker
+    const generateMissing = (missingOpen: number, missingTest: number) =>
+      this.generateMissingTasks(params, missingOpen, missingTest, taskTypes, difficulty)
 
-    // Check circuit breaker before starting retry loop
-    if (circuitBreaker.isOpen()) {
-      console.warn('[УчиОн] Circuit breaker is OPEN - skipping retry loop due to systematic AI failures')
-    } else {
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        const missingOpen = openTasks - openTasksList.length
-        const missingTest = testQuestions - testTasks.length
-
-        if (missingOpen <= 0 && missingTest <= 0) break
-
-        console.log(`[УчиОн] Task count mismatch: got ${openTasksList.length} open (expected ${openTasks}), ${testTasks.length} test (expected ${testQuestions}). Retrying... (attempt ${attempt}/${MAX_RETRIES})`)
-
-        // Exponential backoff: 1s, 2s, 4s
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)))
-
-        const retryOpenCount = Math.max(0, missingOpen)
-        const retryTestCount = Math.max(0, missingTest)
-
-        // Early exit if nothing to retry
-        if (retryOpenCount === 0 && retryTestCount === 0) break
-
-        try {
-          const retryTasks = await this.generateMissingTasks(
-            params,
-            retryOpenCount,
-            retryTestCount,
-            taskTypes,
-            difficulty
-          )
-
-          for (const task of retryTasks) {
-            if (task.type === 'single_choice' || task.type === 'multiple_choice') {
-              testTasks.push(task)
-            } else {
-              openTasksList.push(task)
-            }
-          }
-
-          console.log(`[УчиОн] After retry ${attempt}: testTasks=${testTasks.length}, openTasksList=${openTasksList.length}`)
-
-          // Record success in circuit breaker
-          circuitBreaker.recordSuccess()
-        } catch (retryError) {
-          console.error(`[УчиОн] Retry ${attempt} failed:`, retryError)
-
-          // Record failure in circuit breaker
-          circuitBreaker.recordFailure()
-        }
-      }
-    }
-
-    const finalMissingOpen = openTasks - openTasksList.length
-    const finalMissingTest = testQuestions - testTasks.length
-    if (finalMissingOpen > 0 || finalMissingTest > 0) {
-      console.warn(`[УчиОн] After ${MAX_RETRIES} retries still missing: ${Math.max(0, finalMissingOpen)} open, ${Math.max(0, finalMissingTest)} test`)
-    }
+    await retryMissingTasks(split, testQuestions, openTasks, generateMissing)
 
     // Deterministic validation (no LLM)
-    const allTasks = [...testTasks, ...openTasksList]
+    const allTasks = [...split.testTasks, ...split.openTasksList]
     const validationResult = validateTasksDeterministic(allTasks, params.subject, params.grade)
 
     if (!validationResult.valid) {
@@ -314,14 +139,14 @@ export class OpenAIProvider implements AIProvider {
       )
 
       const badTaskIndices = new Set(validationResult.errors.map(e => e.taskIndex))
-      const cleanTest = testTasks.filter((_, idx) => !badTaskIndices.has(idx))
-      const testOffset = testTasks.length
-      const cleanOpen = openTasksList.filter((_, idx) => !badTaskIndices.has(idx + testOffset))
+      const cleanTest = split.testTasks.filter((_, idx) => !badTaskIndices.has(idx))
+      const testOffset = split.testTasks.length
+      const cleanOpen = split.openTasksList.filter((_, idx) => !badTaskIndices.has(idx + testOffset))
 
-      if (cleanTest.length < testTasks.length || cleanOpen.length < openTasksList.length) {
-        console.log(`[УчиОн] Removed ${testTasks.length - cleanTest.length} test + ${openTasksList.length - cleanOpen.length} open invalid tasks`)
-        testTasks = cleanTest
-        openTasksList = cleanOpen
+      if (cleanTest.length < split.testTasks.length || cleanOpen.length < split.openTasksList.length) {
+        console.log(`[УчиОн] Removed ${split.testTasks.length - cleanTest.length} test + ${split.openTasksList.length - cleanOpen.length} open invalid tasks`)
+        split.testTasks = cleanTest
+        split.openTasksList = cleanOpen
       }
     }
 
@@ -331,34 +156,11 @@ export class OpenAIProvider implements AIProvider {
       )
     }
 
-    // Post-validation backfill: if validation removed tasks, retry to fill the gap
-    const postValMissingOpen = openTasks - openTasksList.length
-    const postValMissingTest = testQuestions - testTasks.length
-    if ((postValMissingOpen > 0 || postValMissingTest > 0) && !circuitBreaker.isOpen()) {
-      console.log(`[УчиОн] Post-validation backfill: need ${postValMissingOpen} open + ${postValMissingTest} test`)
-      try {
-        const backfillTasks = await this.generateMissingTasks(
-          params,
-          Math.max(0, postValMissingOpen),
-          Math.max(0, postValMissingTest),
-          taskTypes,
-          difficulty
-        )
-        for (const task of backfillTasks) {
-          if (task.type === 'single_choice' || task.type === 'multiple_choice') {
-            testTasks.push(task)
-          } else {
-            openTasksList.push(task)
-          }
-        }
-        console.log(`[УчиОн] After backfill: testTasks=${testTasks.length}, openTasksList=${openTasksList.length}`)
-      } catch (e) {
-        console.warn('[УчиОн] Post-validation backfill failed:', e)
-      }
-    }
+    // Post-validation backfill
+    await backfillTasks(split, testQuestions, openTasks, generateMissing)
 
     // Multi-agent validation (LLM-based, parallel) + auto-fix
-    const allTasksForAgents = [...testTasks, ...openTasksList]
+    const allTasksForAgents = [...split.testTasks, ...split.openTasksList]
     const agentValidation = await runMultiAgentValidation(
       allTasksForAgents,
       { subject: params.subject, grade: params.grade, topic: params.topic, difficulty },
@@ -376,11 +178,11 @@ export class OpenAIProvider implements AIProvider {
     }
 
     const finalTasks = agentValidation.fixedTasks
-    const testOffset = testTasks.length
-    testTasks = finalTasks.slice(0, testOffset) as typeof testTasks
-    openTasksList = finalTasks.slice(testOffset) as typeof openTasksList
+    const testOffset = split.testTasks.length
+    split.testTasks = finalTasks.slice(0, testOffset) as typeof split.testTasks
+    split.openTasksList = finalTasks.slice(testOffset) as typeof split.openTasksList
 
-    const worksheet = this.convertToWorksheet(params, testTasks, openTasksList, testQuestions, openTasks)
+    const worksheet = convertToWorksheet(params, split.testTasks, split.openTasksList, testQuestions, openTasks)
 
     onProgress?.(90)
 
@@ -397,191 +199,6 @@ export class OpenAIProvider implements AIProvider {
     onProgress?.(95)
 
     return worksheet
-  }
-
-  /**
-   * Convert generated tasks to Worksheet format
-   */
-  private convertToWorksheet(
-    params: GenerateParams,
-    testTasks: GeneratedTask[],
-    openTasksList: GeneratedTask[],
-    targetTestCount: number,
-    targetOpenCount: number
-  ): Worksheet {
-    const test: TestQuestion[] = testTasks.slice(0, targetTestCount).map(task => {
-      if (task.type === 'single_choice') {
-        const options = task.options || []
-        const correctIdx = task.correctIndex ?? 0
-        return {
-          question: task.question || '',
-          options,
-          answer: options[correctIdx] || options[0] || ''
-        }
-      } else if (task.type === 'multiple_choice') {
-        const options = task.options || []
-        const correctIdxs = task.correctIndices || [0]
-        const answers = correctIdxs.map(i => options[i]).filter(Boolean)
-        return {
-          question: task.question || '',
-          options,
-          answer: answers.join(', ')
-        }
-      }
-      return { question: '', options: [], answer: '' }
-    })
-
-    const assignments: Assignment[] = openTasksList.slice(0, targetOpenCount).map((task, i) => {
-      let text = ''
-
-      if (task.type === 'open_question') {
-        text = task.question || ''
-      } else if (task.type === 'matching') {
-        // Shuffle right column so answers aren't in obvious order
-        shuffleMatchingRightColumn(task)
-        const matchingData = {
-          type: 'matching',
-          instruction: task.instruction || 'Соотнеси элементы',
-          leftColumn: task.leftColumn || [],
-          rightColumn: task.rightColumn || [],
-        }
-        text = `<!--MATCHING:${JSON.stringify(matchingData)}-->`
-      } else if (task.type === 'fill_blank') {
-        text = task.textWithBlanks || ''
-      }
-
-      return {
-        title: `Задание ${i + 1}`,
-        text
-      }
-    })
-
-    const answersAssignments: string[] = openTasksList.slice(0, targetOpenCount).map((task, i) => {
-      let answer = ''
-      if (task.type === 'open_question') {
-        answer = task.correctAnswer || ''
-      } else if (task.type === 'matching') {
-        const pairs = task.correctPairs || []
-        answer = formatMatchingAnswer(pairs)
-      } else if (task.type === 'fill_blank') {
-        const blanks = task.blanks || []
-        answer = blanks.map(b => `(${b.position}) ${b.correctAnswer}`).join('; ')
-      }
-      if (!answer) {
-        console.warn(`[УчиОн] Empty answer for open task ${i} (type: ${task.type})`, {
-          hasCorrectAnswer: !!task.correctAnswer,
-          hasCorrectPairs: !!(task.correctPairs?.length),
-          hasBlanks: !!(task.blanks?.length),
-        })
-      }
-      return answer
-    })
-
-    const answersTest: string[] = testTasks.slice(0, targetTestCount).map((task, i) => {
-      let answer = ''
-      if (task.type === 'single_choice') {
-        const options = task.options || []
-        const idx = task.correctIndex ?? 0
-        if (idx >= options.length) {
-          console.warn(`[УчиОн] single_choice task ${i}: correctIndex ${idx} out of bounds (options: ${options.length})`)
-        }
-        answer = options[idx] || options[0] || ''
-      } else if (task.type === 'multiple_choice') {
-        const options = task.options || []
-        const idxs = task.correctIndices || [0]
-        const outOfBounds = idxs.filter(idx => idx >= options.length)
-        if (outOfBounds.length > 0) {
-          console.warn(`[УчиОн] multiple_choice task ${i}: correctIndices ${outOfBounds.join(',')} out of bounds (options: ${options.length})`)
-        }
-        answer = idxs.map(idx => options[idx]).filter(Boolean).join(', ')
-      }
-      if (!answer) {
-        console.warn(`[УчиОн] Empty answer for test task ${i} (type: ${task.type})`, {
-          hasOptions: !!(task.options?.length),
-          correctIndex: task.correctIndex,
-          correctIndices: task.correctIndices,
-        })
-      }
-      return answer
-    })
-
-    return {
-      id: '',
-      subject: params.subject,
-      grade: `${params.grade} класс`,
-      topic: params.topic,
-      assignments,
-      test,
-      answers: {
-        assignments: answersAssignments,
-        test: answersTest
-      },
-      pdfBase64: ''
-    }
-  }
-
-  /**
-   * Convert a single GeneratedTask to assignment/testQuestion + answer
-   */
-  private convertSingleTask(task: GeneratedTask, isTest: boolean): RegenerateTaskResult {
-    if (isTest) {
-      if (task.type === 'single_choice') {
-        const options = task.options || []
-        const correctIdx = task.correctIndex ?? 0
-        const answer = options[correctIdx] || options[0] || ''
-        return {
-          testQuestion: {
-            question: task.question || '',
-            options,
-            answer
-          },
-          answer
-        }
-      } else if (task.type === 'multiple_choice') {
-        const options = task.options || []
-        const correctIdxs = task.correctIndices || [0]
-        const answers = correctIdxs.map(i => options[i]).filter(Boolean)
-        const answer = answers.join(', ')
-        return {
-          testQuestion: {
-            question: task.question || '',
-            options,
-            answer
-          },
-          answer
-        }
-      }
-      return { testQuestion: { question: '', options: [], answer: '' }, answer: '' }
-    }
-
-    let text = ''
-    let answer = ''
-
-    if (task.type === 'open_question') {
-      text = task.question || ''
-      answer = task.correctAnswer || ''
-    } else if (task.type === 'matching') {
-      // Shuffle right column so answers aren't in obvious order
-      shuffleMatchingRightColumn(task)
-      const matchingData = {
-        type: 'matching',
-        instruction: task.instruction || 'Соотнеси элементы',
-        leftColumn: task.leftColumn || [],
-        rightColumn: task.rightColumn || [],
-      }
-      text = `<!--MATCHING:${JSON.stringify(matchingData)}-->`
-      const pairs = task.correctPairs || []
-      answer = formatMatchingAnswer(pairs)
-    } else if (task.type === 'fill_blank') {
-      text = task.textWithBlanks || ''
-      const blanks = task.blanks || []
-      answer = blanks.map(b => `(${b.position}) ${b.correctAnswer}`).join('; ')
-    }
-
-    return {
-      assignment: { title: 'Задание', text },
-      answer
-    }
   }
 
   /**
@@ -655,7 +272,7 @@ ${taskTypeConfig.promptInstruction}
       throw new Error('AI_ERROR')
     }
 
-    return this.convertSingleTask(task, params.isTest)
+    return convertSingleTask(task, params.isTest)
   }
 
   /**

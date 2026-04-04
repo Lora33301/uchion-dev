@@ -39,30 +39,19 @@ All changes on `staging` branch.
 
 ---
 
-## Task #23: openai-provider.ts — god object
+## ~~Task #23: openai-provider.ts — god object~~ DONE 05.04.2026
 
 **Problem**: 940 lines. `generateWorksheet()` = 314 lines with 7+ responsibilities. JSON repair = 3-level try-catch.
 
 **Strategy**: Extract focused modules, keep provider as orchestrator
 
-1. **Extract `api/_lib/providers/json-repair.ts`** (~80 lines):
-   - `repairTruncatedJSON(rawText)` — 3 levels: cut at boundary, close brackets, regex extraction
-   - From lines 151-224. **Preserve exact behavior**.
+1. **Extract `api/_lib/providers/json-repair.ts`** (78 lines) — `parseGeneratedJson()` with 3 repair strategies
+2. **Extract `api/_lib/providers/task-retry.ts`** (128 lines) — `retryMissingTasks()` + `backfillTasks()` + `splitTasks()`
+3. **Extract `api/_lib/providers/worksheet-converter.ts`** (234 lines) — `convertToWorksheet()` + `convertSingleTask()` + helpers
+4. **Slim `generateWorksheet()`** — 314 -> 157 lines orchestrator
 
-2. **Extract `api/_lib/providers/task-retry.ts`** (~60 lines):
-   - `retryMissingTasks(params)` — exponential backoff + circuit breaker
-   - From lines 245-299.
-
-3. **Extract `api/_lib/providers/worksheet-converter.ts`** (~120 lines):
-   - `convertToWorksheet()` (lines 405-521) + `convertSingleTask()` (lines 526-585)
-
-4. **Slim `generateWorksheet()` to ~80 line orchestrator**:
-   - parse params -> build prompts -> call LLM -> repair JSON -> filter tasks -> retry missing -> validate -> convert
-
-**Do NOT touch**: `regenerateTask()`, `generatePresentation()`, validation pipeline calls.
-
-**Expected**: 940 -> ~600 lines in provider (-36%). Risk: HIGH.
-**Verify**: `npm run smoke` + manual generation with `AI_PROVIDER=polza`.
+**Result**: 940 -> 557 lines in provider (-41%). `tsc`, `build`, unit tests (81 passed), smoke tests (real API) — all green.
+**Not touched**: `regenerateTask()`, `generatePresentation()`, `generateMissingTasks()`, validation pipeline.
 
 ---
 
