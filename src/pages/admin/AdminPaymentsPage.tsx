@@ -17,7 +17,13 @@ import {
   type PaymentIntentStatusFilter,
   type SubscriptionStatusFilter,
 } from '../../lib/admin-api'
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from '../../components/ui/Icons'
+import { useSearchableTable } from '../../hooks/useSearchableTable'
+import { AdminSearchBar } from '../../components/admin/AdminSearchBar'
+import { AdminStatusTabs, type StatusTab } from '../../components/admin/AdminStatusTabs'
+import { AdminPagination } from '../../components/admin/AdminPagination'
+import { Spinner } from '../../components/ui/LoadingSpinner'
+
+// ==================== ICONS (page-specific) ====================
 
 function CurrencyIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -51,11 +57,11 @@ function SubscriptionIcon({ className = "w-5 h-5" }: { className?: string }) {
   )
 }
 
+// ==================== STATUS CONFIGS ====================
+
 type ViewMode = 'intents' | 'subscriptions' | 'webhooks' | 'legacy'
 
-// ==================== PAYMENT INTENTS STATUS CONFIG ====================
-
-const intentStatusTabs: { value: PaymentIntentStatusFilter; label: string; color: string }[] = [
+const intentStatusTabs: StatusTab<PaymentIntentStatusFilter>[] = [
   { value: 'all', label: 'Все', color: 'bg-slate-700' },
   { value: 'created', label: 'Создан', color: 'bg-amber-500' },
   { value: 'paid', label: 'Оплачен', color: 'bg-emerald-500' },
@@ -63,24 +69,15 @@ const intentStatusTabs: { value: PaymentIntentStatusFilter; label: string; color
   { value: 'expired', label: 'Истёк', color: 'bg-slate-500' },
 ]
 
-function getIntentStatusBadgeStyle(status: string) {
-  switch (status) {
-    case 'paid':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'created':
-      return 'bg-amber-100 text-amber-700'
-    case 'failed':
-      return 'bg-red-100 text-red-700'
-    case 'expired':
-      return 'bg-slate-100 text-slate-600'
-    default:
-      return 'bg-slate-100 text-slate-600'
-  }
-}
+const subStatusTabs: StatusTab<SubscriptionStatusFilter>[] = [
+  { value: 'all', label: 'Все', color: 'bg-slate-700' },
+  { value: 'active', label: 'Активные', color: 'bg-emerald-500' },
+  { value: 'past_due', label: 'Просроченные', color: 'bg-amber-500' },
+  { value: 'cancelled', label: 'Отменённые', color: 'bg-red-500' },
+  { value: 'expired', label: 'Истёкшие', color: 'bg-slate-500' },
+]
 
-// ==================== LEGACY PAYMENT STATUS CONFIG ====================
-
-const legacyStatusTabs: { value: PaymentStatusFilter; label: string; color: string }[] = [
+const legacyStatusTabs: StatusTab<PaymentStatusFilter>[] = [
   { value: 'all', label: 'Все', color: 'bg-slate-700' },
   { value: 'succeeded', label: 'Успешные', color: 'bg-emerald-500' },
   { value: 'pending', label: 'Ожидание', color: 'bg-amber-500' },
@@ -88,74 +85,64 @@ const legacyStatusTabs: { value: PaymentStatusFilter; label: string; color: stri
   { value: 'refunded', label: 'Возвраты', color: 'bg-purple-500' },
 ]
 
-function getLegacyStatusBadgeStyle(status: string) {
+// ==================== BADGE HELPERS ====================
+
+function getIntentStatusBadgeStyle(status: string) {
   switch (status) {
-    case 'succeeded':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'pending':
-      return 'bg-amber-100 text-amber-700'
-    case 'failed':
-      return 'bg-red-100 text-red-700'
-    case 'refunded':
-      return 'bg-purple-100 text-purple-700'
-    default:
-      return 'bg-slate-100 text-slate-600'
+    case 'paid': return 'bg-emerald-100 text-emerald-700'
+    case 'created': return 'bg-amber-100 text-amber-700'
+    case 'failed': return 'bg-red-100 text-red-700'
+    case 'expired': return 'bg-slate-100 text-slate-600'
+    default: return 'bg-slate-100 text-slate-600'
   }
 }
 
-// ==================== SPINNER ====================
-
-function Spinner() {
-  return (
-    <div className="flex justify-center py-12">
-      <div className="relative">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-200"></div>
-        <div className="absolute inset-0 animate-spin rounded-full h-8 w-8 border-t-2 border-[#8C52FF]"></div>
-      </div>
-    </div>
-  )
+function getSubStatusBadgeStyle(status: string) {
+  switch (status) {
+    case 'active': return 'bg-emerald-100 text-emerald-700'
+    case 'past_due': return 'bg-amber-100 text-amber-700'
+    case 'cancelled': return 'bg-red-100 text-red-700'
+    case 'expired': return 'bg-slate-100 text-slate-600'
+    default: return 'bg-slate-100 text-slate-600'
+  }
 }
 
-// ==================== PAGINATION ====================
+function getPlanBadgeStyle(plan: string) {
+  switch (plan) {
+    case 'expert': return 'bg-purple-100 text-purple-700'
+    case 'teacher': return 'bg-blue-100 text-blue-700'
+    case 'starter': return 'bg-teal-100 text-teal-700'
+    default: return 'bg-slate-100 text-slate-600'
+  }
+}
 
-function Pagination({
-  page,
-  totalPages,
-  total,
-  limit,
-  onPageChange,
-}: {
-  page: number
-  totalPages: number
-  total: number
-  limit: number
-  onPageChange: (p: number) => void
+function getLegacyStatusBadgeStyle(status: string) {
+  switch (status) {
+    case 'succeeded': return 'bg-emerald-100 text-emerald-700'
+    case 'pending': return 'bg-amber-100 text-amber-700'
+    case 'failed': return 'bg-red-100 text-red-700'
+    case 'refunded': return 'bg-purple-100 text-purple-700'
+    default: return 'bg-slate-100 text-slate-600'
+  }
+}
+
+// ==================== EMPTY STATE ====================
+
+function EmptyState({ icon: Icon, filtered, label, hint }: {
+  icon: React.ComponentType<{ className?: string }>
+  filtered: boolean
+  label: string
+  hint: string
 }) {
-  if (totalPages <= 1) return null
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
-      <p className="text-sm text-slate-500">
-        Показано {(page - 1) * limit + 1}&ndash;{Math.min(page * limit, total)} из {total}
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-          disabled={page === 1}
-          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeftIcon className="w-5 h-5 text-slate-600" />
-        </button>
-        <span className="px-3 py-1 text-sm font-medium text-slate-600">
-          {page} / {totalPages}
-        </span>
-        <button
-          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-          disabled={page === totalPages}
-          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRightIcon className="w-5 h-5 text-slate-600" />
-        </button>
+    <div className="text-center py-12">
+      <div className="mb-4">
+        <Icon className="w-12 h-12 text-slate-300 mx-auto" />
       </div>
+      <p className="text-slate-500">
+        {filtered ? `${label} не найдены` : `Нет ${label.toLowerCase()}`}
+      </p>
+      <p className="text-sm text-slate-400 mt-1">{hint}</p>
     </div>
   )
 }
@@ -164,46 +151,21 @@ function Pagination({
 
 function PaymentIntentsTab() {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [statusFilter, setStatusFilter] = useState<PaymentIntentStatusFilter>('all')
+  const table = useSearchableTable<PaymentIntentStatusFilter>('all')
   const [applyingId, setApplyingId] = useState<string | null>(null)
-  const limit = 20
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-payment-intents', page, search, statusFilter],
-    queryFn: () => fetchPaymentIntents({ page, limit, search, status: statusFilter }),
-    staleTime: 30 * 1000,
+    queryKey: ['admin-payment-intents', table.page, table.search, table.statusFilter],
+    queryFn: () => fetchPaymentIntents({ page: table.page, limit: table.limit, search: table.search, status: table.statusFilter }),
+    staleTime: 30_000,
   })
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
-  }
-
-  const handleClearSearch = () => {
-    setSearchInput('')
-    setSearch('')
-    setPage(1)
-  }
-
-  const handleStatusChange = (status: PaymentIntentStatusFilter) => {
-    setStatusFilter(status)
-    setPage(1)
-  }
-
   const handleApply = async (id: string) => {
-    const confirmed = window.confirm(
-      'Применить оплату вручную? Это зачислит подписку пользователю.'
-    )
-    if (!confirmed) return
-
+    if (!window.confirm('Применить оплату вручную? Это зачислит подписку пользователю.')) return
     setApplyingId(id)
     try {
       await applyPaymentIntent(id)
-      await queryClient.invalidateQueries({ queryKey: ['admin-payment-intents', page, search, statusFilter] })
+      await queryClient.invalidateQueries({ queryKey: ['admin-payment-intents', table.page, table.search, table.statusFilter] })
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Не удалось применить оплату')
     } finally {
@@ -211,17 +173,10 @@ function PaymentIntentsTab() {
     }
   }
 
-  if (error) {
-    return (
-      <div className="glass-container p-6 text-center">
-        <p className="text-red-500">Ошибка загрузки платежных интентов</p>
-      </div>
-    )
-  }
+  if (error) return <div className="glass-container p-6 text-center"><p className="text-red-500">Ошибка загрузки платежных интентов</p></div>
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
       {data && (
         <div className="glass-container p-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
@@ -229,77 +184,25 @@ function PaymentIntentsTab() {
           </div>
           <div>
             <p className="text-sm text-slate-500">Всего интентов</p>
-            <p className="text-xl font-bold text-slate-700">
-              {data.pagination.total}
-            </p>
+            <p className="text-xl font-bold text-slate-700">{data.pagination.total}</p>
           </div>
         </div>
       )}
 
-      {/* Status Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {intentStatusTabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => handleStatusChange(tab.value)}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-              statusFilter === tab.value
-                ? `${tab.color} text-white`
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <AdminStatusTabs tabs={intentStatusTabs} value={table.statusFilter} onChange={table.handleStatusChange} />
+      <AdminSearchBar
+        searchInput={table.searchInput}
+        onSearchInputChange={table.setSearchInput}
+        onSubmit={table.handleSearch}
+        onClear={table.handleClearSearch}
+        showClear={!!table.search}
+      />
 
-      {/* Search */}
-      <div className="glass-container p-4">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="flex-1 relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Поиск по email пользователя..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8C52FF]/20 focus:border-[#8C52FF]"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-5 py-2.5 bg-[#8C52FF] text-white rounded-xl font-medium hover:bg-purple-700 transition-colors"
-          >
-            Найти
-          </button>
-          {search && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition-colors"
-            >
-              Сбросить
-            </button>
-          )}
-        </form>
-      </div>
-
-      {/* Table */}
       <div className="glass-container overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
         ) : !data?.paymentIntents.length ? (
-          <div className="text-center py-12">
-            <div className="mb-4">
-              <CurrencyIcon className="w-12 h-12 text-slate-300 mx-auto" />
-            </div>
-            <p className="text-slate-500">
-              {search || statusFilter !== 'all' ? 'Интенты не найдены' : 'Нет платежных интентов'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              Интенты создаются при инициации оплаты пользователем
-            </p>
-          </div>
+          <EmptyState icon={CurrencyIcon} filtered={!!table.search || table.statusFilter !== 'all'} label="Интенты" hint="Интенты создаются при инициации оплаты пользователем" />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -325,30 +228,19 @@ function PaymentIntentsTab() {
                       }`}
                     >
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">
-                          {formatDateTime(intent.createdAt)}
-                        </span>
+                        <span className="text-sm text-slate-600">{formatDateTime(intent.createdAt)}</span>
                         {intent.paidAt && (
-                          <p className="text-xs text-emerald-600 mt-0.5">
-                            Оплачен: {formatDateTime(intent.paidAt)}
-                          </p>
+                          <p className="text-xs text-emerald-600 mt-0.5">Оплачен: {formatDateTime(intent.paidAt)}</p>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <Link
-                          to={`/admin/users/${intent.userId}`}
-                          className="text-sm font-medium text-[#8C52FF] hover:underline"
-                        >
+                        <Link to={`/admin/users/${intent.userId}`} className="text-sm font-medium text-[#8C52FF] hover:underline">
                           {intent.userEmail || 'Неизвестно'}
                         </Link>
-                        {intent.userName && (
-                          <p className="text-xs text-slate-500">{intent.userName}</p>
-                        )}
+                        {intent.userName && <p className="text-xs text-slate-500">{intent.userName}</p>}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm font-mono text-slate-700">
-                          {intent.productCode}
-                        </span>
+                        <span className="text-sm font-mono text-slate-700">{intent.productCode}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getIntentStatusBadgeStyle(intent.status)}`}>
@@ -366,10 +258,7 @@ function PaymentIntentsTab() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className="text-sm text-slate-500 font-mono"
-                          title={intent.providerOrderId}
-                        >
+                        <span className="text-sm text-slate-500 font-mono" title={intent.providerOrderId}>
                           {intent.providerOrderId
                             ? intent.providerOrderId.slice(0, 12) + (intent.providerOrderId.length > 12 ? '...' : '')
                             : '—'}
@@ -393,14 +282,7 @@ function PaymentIntentsTab() {
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              page={page}
-              totalPages={data.pagination.totalPages}
-              total={data.pagination.total}
-              limit={limit}
-              onPageChange={setPage}
-            />
+            <AdminPagination page={table.page} totalPages={data.pagination.totalPages} total={data.pagination.total} limit={table.limit} onPageChange={table.setPage} />
           </>
         )}
       </div>
@@ -417,20 +299,13 @@ function WebhookEventsTab() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-webhook-events', page],
     queryFn: () => fetchWebhookEvents({ page, limit }),
-    staleTime: 30 * 1000,
+    staleTime: 30_000,
   })
 
-  if (error) {
-    return (
-      <div className="glass-container p-6 text-center">
-        <p className="text-red-500">Ошибка загрузки вебхук-событий</p>
-      </div>
-    )
-  }
+  if (error) return <div className="glass-container p-6 text-center"><p className="text-red-500">Ошибка загрузки вебхук-событий</p></div>
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
       {data && (
         <div className="glass-container p-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -438,27 +313,16 @@ function WebhookEventsTab() {
           </div>
           <div>
             <p className="text-sm text-slate-500">Всего вебхук-событий</p>
-            <p className="text-xl font-bold text-slate-700">
-              {data.pagination.total}
-            </p>
+            <p className="text-xl font-bold text-slate-700">{data.pagination.total}</p>
           </div>
         </div>
       )}
 
-      {/* Table */}
       <div className="glass-container overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
         ) : !data?.webhookEvents.length ? (
-          <div className="text-center py-12">
-            <div className="mb-4">
-              <WebhookIcon className="w-12 h-12 text-slate-300 mx-auto" />
-            </div>
-            <p className="text-slate-500">Нет вебхук-событий</p>
-            <p className="text-sm text-slate-400 mt-1">
-              События появятся после получения вебхуков от платёжной системы
-            </p>
-          </div>
+          <EmptyState icon={WebhookIcon} filtered={false} label="Вебхук-события" hint="События появятся после получения вебхуков от платёжной системы" />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -475,9 +339,7 @@ function WebhookEventsTab() {
                   {data.webhookEvents.map((event) => (
                     <tr key={event.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">
-                          {formatDateTime(event.createdAt)}
-                        </span>
+                        <span className="text-sm text-slate-600">{formatDateTime(event.createdAt)}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
@@ -485,28 +347,17 @@ function WebhookEventsTab() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm font-mono text-slate-700 break-all">
-                          {event.eventKey}
-                        </span>
+                        <span className="text-sm font-mono text-slate-700 break-all">{event.eventKey}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm font-mono text-slate-400">
-                          {event.rawPayloadHash.slice(0, 12)}
-                        </span>
+                        <span className="text-sm font-mono text-slate-400">{event.rawPayloadHash.slice(0, 12)}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              page={page}
-              totalPages={data.pagination.totalPages}
-              total={data.pagination.total}
-              limit={limit}
-              onPageChange={setPage}
-            />
+            <AdminPagination page={page} totalPages={data.pagination.totalPages} total={data.pagination.total} limit={limit} onPageChange={setPage} />
           </>
         )}
       </div>
@@ -516,74 +367,19 @@ function WebhookEventsTab() {
 
 // ==================== SUBSCRIPTIONS TAB ====================
 
-const subStatusTabs: { value: SubscriptionStatusFilter; label: string; color: string }[] = [
-  { value: 'all', label: 'Все', color: 'bg-slate-700' },
-  { value: 'active', label: 'Активные', color: 'bg-emerald-500' },
-  { value: 'past_due', label: 'Просроченные', color: 'bg-amber-500' },
-  { value: 'cancelled', label: 'Отменённые', color: 'bg-red-500' },
-  { value: 'expired', label: 'Истёкшие', color: 'bg-slate-500' },
-]
-
-function getSubStatusBadgeStyle(status: string) {
-  switch (status) {
-    case 'active': return 'bg-emerald-100 text-emerald-700'
-    case 'past_due': return 'bg-amber-100 text-amber-700'
-    case 'cancelled': return 'bg-red-100 text-red-700'
-    case 'expired': return 'bg-slate-100 text-slate-600'
-    default: return 'bg-slate-100 text-slate-600'
-  }
-}
-
-function getPlanBadgeStyle(plan: string) {
-  switch (plan) {
-    case 'expert': return 'bg-purple-100 text-purple-700'
-    case 'teacher': return 'bg-blue-100 text-blue-700'
-    case 'starter': return 'bg-teal-100 text-teal-700'
-    default: return 'bg-slate-100 text-slate-600'
-  }
-}
-
 function SubscriptionsTab() {
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [statusFilter, setStatusFilter] = useState<SubscriptionStatusFilter>('all')
-  const limit = 20
+  const table = useSearchableTable<SubscriptionStatusFilter>('all')
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-subscriptions', page, search, statusFilter],
-    queryFn: () => fetchSubscriptions({ page, limit, search, status: statusFilter }),
-    staleTime: 30 * 1000,
+    queryKey: ['admin-subscriptions', table.page, table.search, table.statusFilter],
+    queryFn: () => fetchSubscriptions({ page: table.page, limit: table.limit, search: table.search, status: table.statusFilter }),
+    staleTime: 30_000,
   })
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
-  }
-
-  const handleClearSearch = () => {
-    setSearchInput('')
-    setSearch('')
-    setPage(1)
-  }
-
-  const handleStatusChange = (status: SubscriptionStatusFilter) => {
-    setStatusFilter(status)
-    setPage(1)
-  }
-
-  if (error) {
-    return (
-      <div className="glass-container p-6 text-center">
-        <p className="text-red-500">Ошибка загрузки подписок</p>
-      </div>
-    )
-  }
+  if (error) return <div className="glass-container p-6 text-center"><p className="text-red-500">Ошибка загрузки подписок</p></div>
 
   return (
     <div className="space-y-6">
-      {/* Summary */}
       {data && (
         <div className="glass-container p-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -591,77 +387,25 @@ function SubscriptionsTab() {
           </div>
           <div>
             <p className="text-sm text-slate-500">Всего подписок</p>
-            <p className="text-xl font-bold text-slate-700">
-              {data.pagination.total}
-            </p>
+            <p className="text-xl font-bold text-slate-700">{data.pagination.total}</p>
           </div>
         </div>
       )}
 
-      {/* Status Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {subStatusTabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => handleStatusChange(tab.value)}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-              statusFilter === tab.value
-                ? `${tab.color} text-white`
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <AdminStatusTabs tabs={subStatusTabs} value={table.statusFilter} onChange={table.handleStatusChange} />
+      <AdminSearchBar
+        searchInput={table.searchInput}
+        onSearchInputChange={table.setSearchInput}
+        onSubmit={table.handleSearch}
+        onClear={table.handleClearSearch}
+        showClear={!!table.search}
+      />
 
-      {/* Search */}
-      <div className="glass-container p-4">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="flex-1 relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Поиск по email пользователя..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8C52FF]/20 focus:border-[#8C52FF]"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-5 py-2.5 bg-[#8C52FF] text-white rounded-xl font-medium hover:bg-purple-700 transition-colors"
-          >
-            Найти
-          </button>
-          {search && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition-colors"
-            >
-              Сбросить
-            </button>
-          )}
-        </form>
-      </div>
-
-      {/* Table */}
       <div className="glass-container overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
         ) : !data?.subscriptions.length ? (
-          <div className="text-center py-12">
-            <div className="mb-4">
-              <SubscriptionIcon className="w-12 h-12 text-slate-300 mx-auto" />
-            </div>
-            <p className="text-slate-500">
-              {search || statusFilter !== 'all' ? 'Подписки не найдены' : 'Нет подписок'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              Подписки появятся после оплаты через Prodamus
-            </p>
-          </div>
+          <EmptyState icon={SubscriptionIcon} filtered={!!table.search || table.statusFilter !== 'all'} label="Подписки" hint="Подписки появятся после оплаты через Prodamus" />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -688,20 +432,13 @@ function SubscriptionsTab() {
                       }`}
                     >
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">
-                          {formatDateTime(sub.createdAt)}
-                        </span>
+                        <span className="text-sm text-slate-600">{formatDateTime(sub.createdAt)}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <Link
-                          to={`/admin/users/${sub.userId}`}
-                          className="text-sm font-medium text-[#8C52FF] hover:underline"
-                        >
+                        <Link to={`/admin/users/${sub.userId}`} className="text-sm font-medium text-[#8C52FF] hover:underline">
                           {sub.userEmail || sub.customerEmail || 'Неизвестно'}
                         </Link>
-                        {sub.userName && (
-                          <p className="text-xs text-slate-500">{sub.userName}</p>
-                        )}
+                        {sub.userName && <p className="text-xs text-slate-500">{sub.userName}</p>}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getPlanBadgeStyle(sub.plan)}`}>
@@ -713,20 +450,14 @@ function SubscriptionsTab() {
                           {formatSubscriptionStatus(sub.status)}
                         </span>
                         {sub.cancelledAt && (
-                          <p className="text-xs text-red-500 mt-0.5">
-                            Отменена: {formatDateTime(sub.cancelledAt)}
-                          </p>
+                          <p className="text-xs text-red-500 mt-0.5">Отменена: {formatDateTime(sub.cancelledAt)}</p>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-semibold text-slate-700">
-                          {sub.generationsPerPeriod}
-                        </span>
+                        <span className="text-sm font-semibold text-slate-700">{sub.generationsPerPeriod}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">
-                          {sub.currentPeriodEnd ? formatDateTime(sub.currentPeriodEnd) : '—'}
-                        </span>
+                        <span className="text-sm text-slate-600">{sub.currentPeriodEnd ? formatDateTime(sub.currentPeriodEnd) : '—'}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-mono text-slate-400" title={sub.prodamusSubscriptionId || ''}>
@@ -738,14 +469,7 @@ function SubscriptionsTab() {
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              page={page}
-              totalPages={data.pagination.totalPages}
-              total={data.pagination.total}
-              limit={limit}
-              onPageChange={setPage}
-            />
+            <AdminPagination page={table.page} totalPages={data.pagination.totalPages} total={data.pagination.total} limit={table.limit} onPageChange={table.setPage} />
           </>
         )}
       </div>
@@ -756,57 +480,27 @@ function SubscriptionsTab() {
 // ==================== LEGACY PAYMENTS TAB ====================
 
 function LegacyPaymentsTab() {
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>('all')
-  const limit = 20
+  const table = useSearchableTable<PaymentStatusFilter>('all')
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['admin-payments', page, search, statusFilter],
-    queryFn: () => fetchAdminPayments({ page, limit, search, status: statusFilter }),
-    staleTime: 30 * 1000,
+    queryKey: ['admin-payments', table.page, table.search, table.statusFilter],
+    queryFn: () => fetchAdminPayments({ page: table.page, limit: table.limit, search: table.search, status: table.statusFilter }),
+    staleTime: 30_000,
   })
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
-  }
-
-  const handleClearSearch = () => {
-    setSearchInput('')
-    setSearch('')
-    setPage(1)
-  }
-
-  const handleStatusChange = (status: PaymentStatusFilter) => {
-    setStatusFilter(status)
-    setPage(1)
-  }
 
   const totals = data?.payments.reduce(
     (acc, payment) => {
-      if (payment.status === 'succeeded') {
-        acc.succeeded += payment.amount
-      }
+      if (payment.status === 'succeeded') acc.succeeded += payment.amount
       acc.total += payment.amount
       return acc
     },
     { total: 0, succeeded: 0 }
   ) || { total: 0, succeeded: 0 }
 
-  if (error) {
-    return (
-      <div className="glass-container p-6 text-center">
-        <p className="text-red-500">Ошибка загрузки платежей</p>
-      </div>
-    )
-  }
+  if (error) return <div className="glass-container p-6 text-center"><p className="text-red-500">Ошибка загрузки платежей</p></div>
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       {data && data.payments.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="glass-container p-4 flex items-center gap-4">
@@ -815,9 +509,7 @@ function LegacyPaymentsTab() {
             </div>
             <div>
               <p className="text-sm text-slate-500">Успешных на странице</p>
-              <p className="text-xl font-bold text-emerald-600">
-                {formatAmount(totals.succeeded)}
-              </p>
+              <p className="text-xl font-bold text-emerald-600">{formatAmount(totals.succeeded)}</p>
             </div>
           </div>
           <div className="glass-container p-4 flex items-center gap-4">
@@ -826,78 +518,26 @@ function LegacyPaymentsTab() {
             </div>
             <div>
               <p className="text-sm text-slate-500">Всего платежей</p>
-              <p className="text-xl font-bold text-slate-700">
-                {data.pagination.total}
-              </p>
+              <p className="text-xl font-bold text-slate-700">{data.pagination.total}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Status Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {legacyStatusTabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => handleStatusChange(tab.value)}
-            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-              statusFilter === tab.value
-                ? `${tab.color} text-white`
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <AdminStatusTabs tabs={legacyStatusTabs} value={table.statusFilter} onChange={table.handleStatusChange} />
+      <AdminSearchBar
+        searchInput={table.searchInput}
+        onSearchInputChange={table.setSearchInput}
+        onSubmit={table.handleSearch}
+        onClear={table.handleClearSearch}
+        showClear={!!table.search}
+      />
 
-      {/* Search */}
-      <div className="glass-container p-4">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="flex-1 relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Поиск по email пользователя..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8C52FF]/20 focus:border-[#8C52FF]"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-5 py-2.5 bg-[#8C52FF] text-white rounded-xl font-medium hover:bg-purple-700 transition-colors"
-          >
-            Найти
-          </button>
-          {search && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition-colors"
-            >
-              Сбросить
-            </button>
-          )}
-        </form>
-      </div>
-
-      {/* Table */}
       <div className="glass-container overflow-hidden">
         {isLoading ? (
-          <Spinner />
+          <div className="flex justify-center py-12"><Spinner className="h-8 w-8" /></div>
         ) : !data?.payments.length ? (
-          <div className="text-center py-12">
-            <div className="mb-4">
-              <CurrencyIcon className="w-12 h-12 text-slate-300 mx-auto" />
-            </div>
-            <p className="text-slate-500">
-              {search || statusFilter !== 'all' ? 'Платежи не найдены' : 'Нет платежей'}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              Платежи появятся после интеграции с платёжной системой
-            </p>
-          </div>
+          <EmptyState icon={CurrencyIcon} filtered={!!table.search || table.statusFilter !== 'all'} label="Платежи" hint="Платежи появятся после интеграции с платёжной системой" />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -921,20 +561,13 @@ function LegacyPaymentsTab() {
                       }`}
                     >
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">
-                          {formatDateTime(payment.createdAt)}
-                        </span>
+                        <span className="text-sm text-slate-600">{formatDateTime(payment.createdAt)}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <Link
-                          to={`/admin/users/${payment.userId}`}
-                          className="text-sm font-medium text-[#8C52FF] hover:underline"
-                        >
+                        <Link to={`/admin/users/${payment.userId}`} className="text-sm font-medium text-[#8C52FF] hover:underline">
                           {payment.userEmail || 'Неизвестно'}
                         </Link>
-                        {payment.userName && (
-                          <p className="text-xs text-slate-500">{payment.userName}</p>
-                        )}
+                        {payment.userName && <p className="text-xs text-slate-500">{payment.userName}</p>}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getLegacyStatusBadgeStyle(payment.status)}`}>
@@ -952,23 +585,14 @@ function LegacyPaymentsTab() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-500 font-mono">
-                          {payment.providerPaymentId || '—'}
-                        </span>
+                        <span className="text-sm text-slate-500 font-mono">{payment.providerPaymentId || '—'}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <Pagination
-              page={page}
-              totalPages={data.pagination.totalPages}
-              total={data.pagination.total}
-              limit={limit}
-              onPageChange={setPage}
-            />
+            <AdminPagination page={table.page} totalPages={data.pagination.totalPages} total={data.pagination.total} limit={table.limit} onPageChange={table.setPage} />
           </>
         )}
       </div>
@@ -978,61 +602,33 @@ function LegacyPaymentsTab() {
 
 // ==================== MAIN PAGE ====================
 
+const VIEW_TABS: { mode: ViewMode; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+  { mode: 'intents', icon: CurrencyIcon, label: 'Платежи' },
+  { mode: 'subscriptions', icon: SubscriptionIcon, label: 'Подписки' },
+  { mode: 'webhooks', icon: WebhookIcon, label: 'Вебхуки' },
+  { mode: 'legacy', icon: ArchiveIcon, label: 'Устаревшие' },
+]
+
 export default function AdminPaymentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('intents')
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode)
-  }
-
   return (
     <div className="space-y-6">
-      {/* Top-level Tab Toggle */}
       <div className="glass-container p-1 inline-flex rounded-xl">
-        <button
-          onClick={() => handleViewModeChange('intents')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === 'intents'
-              ? 'bg-[#8C52FF] text-white'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <CurrencyIcon className="w-5 h-5" />
-          Платежи
-        </button>
-        <button
-          onClick={() => handleViewModeChange('subscriptions')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === 'subscriptions'
-              ? 'bg-[#8C52FF] text-white'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <SubscriptionIcon className="w-5 h-5" />
-          Подписки
-        </button>
-        <button
-          onClick={() => handleViewModeChange('webhooks')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === 'webhooks'
-              ? 'bg-[#8C52FF] text-white'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <WebhookIcon className="w-5 h-5" />
-          Вебхуки
-        </button>
-        <button
-          onClick={() => handleViewModeChange('legacy')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === 'legacy'
-              ? 'bg-[#8C52FF] text-white'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <ArchiveIcon className="w-5 h-5" />
-          Устаревшие
-        </button>
+        {VIEW_TABS.map(({ mode, icon: Icon, label }) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              viewMode === mode
+                ? 'bg-[#8C52FF] text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Icon className="w-5 h-5" />
+            {label}
+          </button>
+        ))}
       </div>
 
       {viewMode === 'intents' && <PaymentIntentsTab />}
