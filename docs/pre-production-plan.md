@@ -158,21 +158,24 @@
 3 файла (770-860 строк) с дублированными `contentElementsToRows`, `addWatermark`, 10 slide-функций.
 **Решение**: `BaseSlideGenerator` + `ThemeConfig`. 2400 → ~1000 строк.
 
-### 25. GeneratePresentationFormSchema дублирована
+### 25. ~~GeneratePresentationFormSchema дублирована~~ DONE 01.04.2026
 Определена в `constants/generation.ts` и локально в `GeneratePresentationPage.tsx` с разницей в `.optional()`.
 **Решение**: Удалить локальную, импортировать из constants.
+**Выполнено**: Локальная схема удалена из `GeneratePresentationPage.tsx`, импортируется из `constants/generation.ts`. `themePreset` сделан required (формы всегда задают значение по умолчанию).
 
-### 26. `values as any` при вызове API (3 места)
+### 26. ~~`values as any` при вызове API (3 места)~~ DONE 01.04.2026
 `GenerateFormValues` и `GeneratePayload` — разные типы, маскируются `as any`.
 **Решение**: Явный маппинг `formValuesToPayload()` или унификация типов.
+**Выполнено**: 6 `as any` убрано. Добавлены `formValuesToPayload()` и `presentationFormToPayload()` — явные type-safe mappers form→API. Дефолтные значения форм: `'' as any`/`0 as any` заменены на `undefined` (валидный `DeepPartial`).
 
 ### 27. pdf-generator.ts — 20+ any вместо типов pdf-lib
 `page: any`, `font: any` вместо `PDFPage`, `PDFFont`.
 **Решение**: Импорт типов из pdf-lib.
 
-### 28. Hardcoded magic numbers
+### 28. ~~Hardcoded magic numbers~~ DONE 01.04.2026
 `generationsLeft: 5` в auth.ts (строки 388, 600) вместо `SUBSCRIPTION_PLANS.free.generationsPerPeriod`.
 **Решение**: Импорт из shared/plans.ts.
+**Выполнено**: 5 мест заменены на `SUBSCRIPTION_PLANS.free.generationsPerPeriod`: auth.ts (3 — Yandex callback, email verify, /me response), db/schema.ts (default), SubscriptionPlansModal.tsx (PLAN_GENERATIONS).
 
 ### 29. auth.ts — findOrCreateUser не вынесен
 Логика создания юзера дублируется в Yandex callback и email verify.
@@ -235,7 +238,7 @@ Prodamus webhooks проверяются только по HMAC. Добавит�
 |-----------|-----------------|--------|
 | P0 (блокирует) | 9 задач | **ВСЕ DONE** |
 | P1 (важно) | 10 задач | **ВСЕ DONE** |
-| P2 (долг) | 11 задач | Запланировано |
+| P2 (долг) | 11 задач | **3 DONE** (#25, #26, #28), 8 запланировано |
 | P3 (после Timeweb) | 5 задач | **3 DONE, 1 отложена, 1 запланирована** |
 
-**P0 + P1 + P3 (критические) выполнены.** P2 — рефакторинг по мере роста. #33 (S3 для PDF) отложена — pdfBase64 ~335KB терпимо.
+**P0 + P1 + P3 (критические) выполнены.** P2 — рефакторинг по мере роста. #25, #26, #28 выполнены (01.04.2026). #33 (S3 для PDF) отложена — pdfBase64 ~335KB терпимо.

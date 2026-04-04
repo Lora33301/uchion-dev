@@ -98,12 +98,9 @@ const PLAN_FEATURES: Record<SubscriptionPlanId, PlanFeature[]> = {
 
 // ==================== PLAN GENERATION COUNTS ====================
 
-const PLAN_GENERATIONS: Record<SubscriptionPlanId, number> = {
-  free: 5,
-  starter: 30,
-  teacher: 60,
-  expert: 120,
-}
+const PLAN_GENERATIONS: Record<SubscriptionPlanId, number> = Object.fromEntries(
+  Object.entries(SUBSCRIPTION_PLANS).map(([id, plan]) => [id, plan.generationsPerPeriod])
+) as Record<SubscriptionPlanId, number>
 
 // ==================== COMPACT PLAN SELECTOR CARD ====================
 

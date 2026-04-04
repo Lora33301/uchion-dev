@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, uuid, integer, varchar, boolean, pgEnum, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import { SUBSCRIPTION_PLANS } from '../shared/plans.js'
 
 // ==================== ENUMS ====================
 
@@ -23,7 +24,7 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }),
   image: text('image'),
   role: userRoleEnum('role').notNull().default('user'),
-  generationsLeft: integer('generations_left').notNull().default(5),
+  generationsLeft: integer('generations_left').notNull().default(SUBSCRIPTION_PLANS.free.generationsPerPeriod),
   subscriptionPlan: varchar('subscription_plan', { length: 20 }).notNull().default('free'), // 'free' | 'starter' | 'teacher' | 'expert'
   hasPaidAccess: boolean('has_paid_access').notNull().default(false), // Once paid (any subscription or generation pack) = always gpt-4.1
   // OAuth provider info

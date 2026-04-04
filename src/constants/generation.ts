@@ -111,7 +111,7 @@ export const GeneratePresentationFormSchema = z.object({
   grade: z.number({ message: 'Выберите класс' }).int().min(1, 'Выберите класс').max(11),
   topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
   themeType: z.literal('preset'),
-  themePreset: z.enum(['professional', 'kids', 'school']).optional(),
+  themePreset: z.enum(['professional', 'kids', 'school']),
   slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
 })
 

@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { generatePresentation } from '../lib/presentation-api'
 import CustomSelect from '../components/ui/CustomSelect'
 import { useAuth } from '../lib/auth'
 import { getGenerationsLeft, canGenerate, canGeneratePresentation, isSlideCountAllowed } from '../lib/limits'
 import Header from '../components/Header'
-import type { PresentationStructure } from '../../shared/types'
+import type { PresentationStructure, GeneratePresentationPayload } from '../../shared/types'
 import SlidePreview from '../components/presentations/SlidePreview'
+import {
+  GeneratePresentationFormSchema,
+  type GeneratePresentationFormValues,
+} from '../constants/generation'
 
 // =============================================================================
 // Types and Constants
@@ -39,24 +42,14 @@ const THEME_PRESETS: { value: ActiveThemePreset; label: string; description: str
   { value: 'school', label: 'Школьный', description: 'Классический, уютный', color: 'bg-[#8B9DAE]' },
 ]
 
-// =============================================================================
-// Form Schema
-// =============================================================================
-
-const GeneratePresentationFormSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
-  grade: z.number().int().min(1).max(11),
-  topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
-  themeType: z.literal('preset'),
-  themePreset: z.enum(['professional', 'kids', 'school']),
-  slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
-})
-
-type GeneratePresentationFormValues = z.infer<typeof GeneratePresentationFormSchema>
 
 // =============================================================================
 // Component
 // =============================================================================
+
+function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
+  return { subject: v.subject, grade: v.grade, topic: v.topic, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+}
 
 // Get greeting based on time of day
 function getGreeting(): string {
@@ -139,7 +132,7 @@ export default function GeneratePresentationPage() {
   }
 
   const mutation = useMutation({
-    mutationFn: (values: GeneratePresentationFormValues) => generatePresentation(values as any, (p) => setProgress(p)),
+    mutationFn: (values: GeneratePresentationFormValues) => generatePresentation(presentationFormToPayload(values), (p) => setProgress(p)),
     onSuccess: res => {
       if (res.status === 'error') {
         setErrorCode(res.code ?? null)

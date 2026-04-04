@@ -11,7 +11,7 @@ import { getGenerationsLeft, canGenerate, canGeneratePresentation, isSlideCountA
 import Header from '../components/Header'
 import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import { fetchFolders } from '../lib/dashboard-api'
-import type { PresentationStructure } from '../../shared/types'
+import type { PresentationStructure, GeneratePayload, GeneratePresentationPayload } from '../../shared/types'
 import { downloadBase64File } from '../lib/download-utils'
 import {
   SUBJECTS,
@@ -33,6 +33,14 @@ import type { GenerateMode } from '../components/generation/types'
 // =============================================================================
 // Helpers
 // =============================================================================
+
+function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
+  return { subject: v.subject, grade: v.grade, topic: v.topic, folderId: v.folderId, taskTypes: v.taskTypes, difficulty: v.difficulty, format: v.format, variantIndex: v.variantIndex }
+}
+
+function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
+  return { subject: v.subject, grade: v.grade, topic: v.topic, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -109,12 +117,12 @@ export default function GeneratePage() {
 
   const folders = foldersData?.folders || []
 
-  // Worksheet form — subject starts empty (placeholder)
+  // Worksheet form — subject/grade start undefined (placeholder state)
   const form = useForm<GenerateFormValues>({
     resolver: zodResolver(GenerateFormSchema),
     defaultValues: {
-      subject: '' as any,
-      grade: 0 as any,
+      subject: undefined,
+      grade: undefined,
       topic: '',
       folderId: null,
       format: 'test_and_open',
@@ -124,12 +132,12 @@ export default function GeneratePage() {
     }
   })
 
-  // Presentation form — subject starts empty (placeholder)
+  // Presentation form — subject/grade start undefined (placeholder state)
   const presentationForm = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      subject: '' as any,
-      grade: 0 as any,
+      subject: undefined,
+      grade: undefined,
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',
@@ -207,7 +215,7 @@ export default function GeneratePage() {
   }
 
   const mutation = useMutation({
-    mutationFn: (values: GenerateFormValues) => generateWorksheet(values as any, (p) => setProgress(p)),
+    mutationFn: (values: GenerateFormValues) => generateWorksheet(formValuesToPayload(values), (p) => setProgress(p)),
     onSuccess: res => {
       if (res.status === 'error') {
         setErrorCode(res.code ?? null)
@@ -247,7 +255,7 @@ export default function GeneratePage() {
 
   // Presentation mutation
   const presentationMutation = useMutation({
-    mutationFn: (values: GeneratePresentationFormValues) => generatePresentation(values as any, (p) => setProgress(p)),
+    mutationFn: (values: GeneratePresentationFormValues) => generatePresentation(presentationFormToPayload(values), (p) => setProgress(p)),
     onSuccess: res => {
       if (res.status === 'error') {
         setErrorCode(res.code ?? null)
@@ -277,8 +285,8 @@ export default function GeneratePage() {
     setErrorCode(null)
     setProgress(0)
     presentationForm.reset({
-      subject: '' as any,
-      grade: 0 as any,
+      subject: undefined,
+      grade: undefined,
       topic: '',
       themeType: 'preset',
       themePreset: 'professional',

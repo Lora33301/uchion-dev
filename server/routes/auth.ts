@@ -55,7 +55,7 @@ import {
   logCsrfDetected,
 } from '../middleware/audit-log.js'
 import { sendOTPEmail } from '../../api/_lib/email.js'
-import { getUserPlanConfig } from '../../shared/plans.js'
+import { getUserPlanConfig, SUBSCRIPTION_PLANS } from '../../shared/plans.js'
 
 const router = Router()
 
@@ -141,7 +141,7 @@ router.get('/me', async (req: Request, res: Response) => {
             plan: 'free',
             status: 'active',
             generationsLeft: user.generationsLeft,
-            generationsTotal: 5,
+            generationsTotal: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
             currentPeriodEnd: null,
             cancelledAt: null,
           },
@@ -395,7 +395,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
           provider: 'yandex',
           providerId: oauthUser.providerId,
           role: 'user',
-          generationsLeft: 5,
+          generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
           mailingConsent,
         })
         .returning()
@@ -618,7 +618,7 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
         providerId: email,
         emailVerified: new Date(),
         role: 'user',
-        generationsLeft: 5,
+        generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
         mailingConsent,
       })
       .returning()
