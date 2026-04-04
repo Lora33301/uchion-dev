@@ -59,6 +59,92 @@ import { getUserPlanConfig, SUBSCRIPTION_PLANS } from '../../shared/plans.js'
 
 const router = Router()
 
+// ==================== SHARED: findOrCreateUser ====================
+
+interface FindOrCreateUserParams {
+  email: string
+  provider: 'yandex' | 'email'
+  providerId: string
+  name: string
+  image?: string | null
+  emailVerified?: Date | null
+  mailingConsent: boolean
+}
+
+/**
+ * Find user by email or create a new one.
+ * Handles provider linking (Yandex→email account) and consent/emailVerified updates.
+ * Throws ApiError.forbidden if user is blocked (soft-deleted).
+ */
+async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: string; email: string; role: string }> {
+  const [existing] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      image: users.image,
+      role: users.role,
+      provider: users.provider,
+      emailVerified: users.emailVerified,
+      mailingConsent: users.mailingConsent,
+      deletedAt: users.deletedAt,
+    })
+    .from(users)
+    .where(eq(users.email, params.email))
+    .limit(1)
+
+  if (existing?.deletedAt) {
+    throw ApiError.forbidden('Аккаунт заблокирован')
+  }
+
+  if (!existing) {
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        email: params.email,
+        name: params.name,
+        image: params.image ?? null,
+        provider: params.provider,
+        providerId: params.providerId,
+        emailVerified: params.emailVerified ?? null,
+        role: 'user',
+        generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
+        mailingConsent: params.mailingConsent,
+      })
+      .returning({ id: users.id, email: users.email, role: users.role })
+    return newUser
+  }
+
+  // Update existing user as needed
+  const updates: Record<string, unknown> = {}
+
+  // Link Yandex OAuth to email-created account (provider not yet set)
+  if (params.provider === 'yandex' && !existing.provider) {
+    updates.provider = 'yandex'
+    updates.providerId = params.providerId
+    if (!existing.image && params.image) {
+      updates.image = params.image
+    }
+  }
+
+  // Set emailVerified on first email login
+  if (params.emailVerified && !existing.emailVerified) {
+    updates.emailVerified = params.emailVerified
+  }
+
+  // Mailing consent (one-way: false → true)
+  if (params.mailingConsent && !existing.mailingConsent) {
+    updates.mailingConsent = true
+  }
+
+  if (Object.keys(updates).length > 0) {
+    updates.updatedAt = new Date()
+    await db.update(users).set(updates).where(eq(users.id, existing.id))
+  }
+
+  return { id: existing.id, email: existing.email, role: existing.role }
+}
+
 // ==================== GET /api/auth/me ====================
 router.get('/me', async (req: Request, res: Response) => {
   await requireMeRateLimit(req)
@@ -363,63 +449,16 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
       codeVerifier,
     })
 
-    let [user] = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        image: users.image,
-        role: users.role,
-        provider: users.provider,
-        mailingConsent: users.mailingConsent,
-        deletedAt: users.deletedAt,
-      })
-      .from(users)
-      .where(eq(users.email, oauthUser.email.toLowerCase()))
-      .limit(1)
-
-    if (user?.deletedAt) {
-      // Blocked user — deny login
-      return res.redirect(302, `${appUrl}/login?error=authentication_failed`)
-    }
-
     const mailingConsent = getMailingConsentCookie(req)
 
-    if (!user) {
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          email: oauthUser.email.toLowerCase(),
-          name: oauthUser.name,
-          image: oauthUser.image,
-          provider: 'yandex',
-          providerId: oauthUser.providerId,
-          role: 'user',
-          generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
-          mailingConsent,
-        })
-        .returning()
-
-      user = newUser
-    } else {
-      if (!user.provider) {
-        await db
-          .update(users)
-          .set({
-            provider: 'yandex',
-            providerId: oauthUser.providerId,
-            image: user.image || oauthUser.image,
-            ...(mailingConsent && !user.mailingConsent ? { mailingConsent: true } : {}),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, user.id))
-      } else if (mailingConsent && !user.mailingConsent) {
-        await db
-          .update(users)
-          .set({ mailingConsent: true, updatedAt: new Date() })
-          .where(eq(users.id, user.id))
-      }
-    }
+    const user = await findOrCreateUser({
+      email: oauthUser.email.toLowerCase(),
+      provider: 'yandex',
+      providerId: oauthUser.providerId,
+      name: oauthUser.name,
+      image: oauthUser.image,
+      mailingConsent: !!mailingConsent,
+    })
 
     const accessToken = createAccessToken({
       userId: user.id,
@@ -587,59 +626,16 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
     .set({ usedAt: new Date() })
     .where(eq(emailCodes.id, record.id))
 
-  // Find or create user (include soft-deleted to avoid unique constraint violation)
-  let [user] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      emailVerified: users.emailVerified,
-      mailingConsent: users.mailingConsent,
-      deletedAt: users.deletedAt,
-    })
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1)
+  // Find or create user
+  const user = await findOrCreateUser({
+    email,
+    provider: 'email',
+    providerId: email,
+    name: email.split('@')[0],
+    emailVerified: new Date(),
+    mailingConsent,
+  })
 
-  if (user?.deletedAt) {
-    // Blocked user — deny login
-    throw ApiError.forbidden('Аккаунт заблокирован')
-  }
-
-  if (!user) {
-    // Truly new user
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email,
-        name: email.split('@')[0],
-        provider: 'email',
-        providerId: email,
-        emailVerified: new Date(),
-        role: 'user',
-        generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
-        mailingConsent,
-      })
-      .returning()
-
-    user = newUser
-  } else {
-    // Existing user updates
-    const updates: Record<string, unknown> = {}
-    if (!user.emailVerified) {
-      updates.emailVerified = new Date()
-    }
-    if (mailingConsent && !user.mailingConsent) {
-      updates.mailingConsent = true
-    }
-    if (Object.keys(updates).length > 0) {
-      updates.updatedAt = new Date()
-      await db.update(users).set(updates).where(eq(users.id, user.id))
-    }
-  }
-
-  // Create JWT tokens (same as Yandex OAuth callback)
   const accessToken = createAccessToken({
     userId: user.id,
     role: user.role,

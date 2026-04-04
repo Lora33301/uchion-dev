@@ -146,9 +146,10 @@
 Три вкладки с copy-paste Search/Pagination. Два разных Pagination в проекте.
 **Решение**: `useSearchableTable` хук, единый `Pagination` компонент.
 
-### 22. admin-api.ts — 38 одинаковых error-handler блоков
+### 22. ~~admin-api.ts — 38 одинаковых error-handler блоков~~ DONE 04.04.2026
 22 функции с идентичным `if (res.status === 401)` / `if (res.status === 403)`.
 **Решение**: `adminFetch(url, options)` wrapper. Файл с 824 → ~400 строк.
+**Выполнено**: `adminFetch<T>()` + `adminPost<T>()` + `buildAdminUrl()` — 3 хелпера заменили 38 дублированных блоков. 825 → 598 строк (-27%). Все экспорты и типы сохранены.
 
 ### 23. openai-provider.ts (892 строки) — god object
 `generateWorksheet()` = 430 строк с 6 ответственностями. JSON repair 3-уровневый try-catch.
@@ -168,18 +169,20 @@
 **Решение**: Явный маппинг `formValuesToPayload()` или унификация типов.
 **Выполнено**: 6 `as any` убрано. Добавлены `formValuesToPayload()` и `presentationFormToPayload()` — явные type-safe mappers form→API. Дефолтные значения форм: `'' as any`/`0 as any` заменены на `undefined` (валидный `DeepPartial`).
 
-### 27. pdf-generator.ts — 20+ any вместо типов pdf-lib
+### 27. ~~pdf-generator.ts — 20+ any вместо типов pdf-lib~~ DONE 04.04.2026
 `page: any`, `font: any` вместо `PDFPage`, `PDFFont`.
 **Решение**: Импорт типов из pdf-lib.
+**Выполнено**: 20+ `any` заменены на `PDFPage` и `PDFFont` из pdf-lib. Импорт типов добавлен.
 
 ### 28. ~~Hardcoded magic numbers~~ DONE 01.04.2026
 `generationsLeft: 5` в auth.ts (строки 388, 600) вместо `SUBSCRIPTION_PLANS.free.generationsPerPeriod`.
 **Решение**: Импорт из shared/plans.ts.
 **Выполнено**: 5 мест заменены на `SUBSCRIPTION_PLANS.free.generationsPerPeriod`: auth.ts (3 — Yandex callback, email verify, /me response), db/schema.ts (default), SubscriptionPlansModal.tsx (PLAN_GENERATIONS).
 
-### 29. auth.ts — findOrCreateUser не вынесен
+### 29. ~~auth.ts — findOrCreateUser не вынесен~~ DONE 04.04.2026
 Логика создания юзера дублируется в Yandex callback и email verify.
 **Решение**: Общая функция `findOrCreateUser(email, provider, updates)`.
+**Выполнено**: `findOrCreateUser(params)` — единая функция: lookup, blocked check, insert/update. Yandex callback и email verify используют её. -4 строки, убрано дублирование ~50 строк.
 
 ### 30. Иконки, Spinner, Pagination — нет общих компонентов
 3+ реализации Spinner, 2+ Pagination, иконки копируются в каждый файл.
@@ -238,7 +241,7 @@ Prodamus webhooks проверяются только по HMAC. Добавит�
 |-----------|-----------------|--------|
 | P0 (блокирует) | 9 задач | **ВСЕ DONE** |
 | P1 (важно) | 10 задач | **ВСЕ DONE** |
-| P2 (долг) | 11 задач | **3 DONE** (#25, #26, #28), 8 запланировано |
+| P2 (долг) | 11 задач | **6 DONE** (#22, #25, #26, #27, #28, #29), 5 запланировано |
 | P3 (после Timeweb) | 5 задач | **3 DONE, 1 отложена, 1 запланирована** |
 
-**P0 + P1 + P3 (критические) выполнены.** P2 — рефакторинг по мере роста. #25, #26, #28 выполнены (01.04.2026). #33 (S3 для PDF) отложена — pdfBase64 ~335KB терпимо.
+**P0 + P1 + P3 (критические) выполнены.** P2 — рефакторинг по мере роста. #22, #25, #26, #27, #28, #29 выполнены. #33 (S3 для PDF) отложена — pdfBase64 ~335KB терпимо.

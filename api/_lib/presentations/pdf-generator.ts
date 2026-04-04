@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument, rgb, type PDFPage, type PDFFont } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import fs from 'fs'
 import path from 'path'
@@ -75,7 +75,7 @@ const CONTENT_W = W - 2 * MARGIN
 // =============================================================================
 
 /** Wrap text to fit within maxWidth, returns array of lines */
-function wrapText(text: string, font: any, fontSize: number, maxWidth: number): string[] {
+function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
   const words = text.split(/\s+/)
   const lines: string[] = []
   let current = ''
@@ -96,11 +96,11 @@ function wrapText(text: string, font: any, fontSize: number, maxWidth: number): 
 
 /** Draw wrapped text, returns Y position after last line */
 function drawWrappedText(
-  page: any,
+  page: PDFPage,
   text: string,
   x: number,
   y: number,
-  font: any,
+  font: PDFFont,
   fontSize: number,
   color: [number, number, number],
   maxWidth: number,
@@ -120,14 +120,14 @@ function drawWrappedText(
 // Slide renderers
 // =============================================================================
 
-function drawAccentBar(page: any, theme: PdfTheme) {
+function drawAccentBar(page: PDFPage, theme: PdfTheme) {
   page.drawRectangle({
     x: 0, y: H - 6, width: W, height: 6,
     color: rgb(...theme.accent),
   })
 }
 
-function drawSlideNumber(page: any, num: number, total: number, font: any, theme: PdfTheme) {
+function drawSlideNumber(page: PDFPage, num: number, total: number, font: PDFFont, theme: PdfTheme) {
   const text = `${num} / ${total}`
   page.drawText(text, {
     x: W - MARGIN - 40, y: 20, size: 9, font, color: rgb(...theme.accent),
@@ -137,7 +137,7 @@ function drawSlideNumber(page: any, num: number, total: number, font: any, theme
   })
 }
 
-function drawSlideHeader(page: any, title: string, font: any, boldFont: any, theme: PdfTheme): number {
+function drawSlideHeader(page: PDFPage, title: string, font: PDFFont, boldFont: PDFFont, theme: PdfTheme): number {
   drawAccentBar(page, theme)
 
   // Vertical accent bar left of title
@@ -166,11 +166,11 @@ function drawSlideHeader(page: any, title: string, font: any, boldFont: any, the
 
 /** Draw rich content elements, returns Y position after all elements */
 function drawContentElements(
-  page: any,
+  page: PDFPage,
   elements: ContentElement[],
   startY: number,
-  font: any,
-  boldFont: any,
+  font: PDFFont,
+  boldFont: PDFFont,
   theme: PdfTheme,
   contentW: number = CONTENT_W,
   marginLeft: number = MARGIN
@@ -242,8 +242,8 @@ function drawContentElements(
 }
 
 async function renderTitleSlide(
-  page: any, slide: PresentationSlide,
-  font: any, boldFont: any, theme: PdfTheme
+  page: PDFPage, slide: PresentationSlide,
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   // Background
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
@@ -277,9 +277,9 @@ async function renderTitleSlide(
 }
 
 async function renderContentSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let y = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -297,9 +297,9 @@ async function renderContentSlide(
 }
 
 async function renderTwoColumnSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -337,9 +337,9 @@ async function renderTwoColumnSlide(
 }
 
 async function renderTableSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -403,9 +403,9 @@ async function renderTableSlide(
 }
 
 async function renderExampleSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -430,9 +430,9 @@ async function renderExampleSlide(
 }
 
 async function renderFormulaSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -459,9 +459,9 @@ async function renderFormulaSlide(
 }
 
 async function renderDiagramSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -505,9 +505,9 @@ async function renderDiagramSlide(
 }
 
 async function renderChartSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -555,9 +555,9 @@ async function renderChartSlide(
 }
 
 async function renderPracticeSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
   let startY = drawSlideHeader(page, slide.title, font, boldFont, theme)
@@ -588,9 +588,9 @@ async function renderPracticeSlide(
 }
 
 async function renderConclusionSlide(
-  page: any, slide: PresentationSlide,
+  page: PDFPage, slide: PresentationSlide,
   num: number, total: number,
-  font: any, boldFont: any, theme: PdfTheme
+  font: PDFFont, boldFont: PDFFont, theme: PdfTheme
 ) {
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...theme.bg) })
 

@@ -75,20 +75,51 @@ export interface Pagination {
   totalPages: number
 }
 
-// ==================== STATS ====================
+// ==================== FETCH HELPERS ====================
 
-export async function fetchAdminStats(): Promise<AdminStats> {
-  const res = await fetch('/api/admin/stats', {
-    credentials: 'include',
-  })
+/**
+ * Wrapper around fetch for admin API calls.
+ * Handles auth errors (401/403) and extracts error messages from response body.
+ */
+async function adminFetch<T>(url: string, init?: RequestInit & { fallbackError?: string }): Promise<T> {
+  const { fallbackError = 'Ошибка запроса', ...fetchInit } = init || {}
+  const res = await fetch(url, { credentials: 'include', ...fetchInit })
 
   if (!res.ok) {
     if (res.status === 401) throw new Error('Требуется авторизация')
     if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить статистику')
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || data.message || fallbackError)
   }
 
-  const data = await res.json()
+  return res.json()
+}
+
+function adminPost<T>(url: string, body?: unknown, fallbackError?: string): Promise<T> {
+  return adminFetch<T>(url, {
+    method: 'POST',
+    ...(body != null && { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    fallbackError,
+  })
+}
+
+function buildAdminUrl(path: string, params?: Record<string, string | number | undefined>): string {
+  const sp = new URLSearchParams()
+  if (params) {
+    for (const [key, val] of Object.entries(params)) {
+      if (val) sp.set(key, String(val))
+    }
+  }
+  const qs = sp.toString()
+  return qs ? `${path}?${qs}` : path
+}
+
+// ==================== STATS ====================
+
+export async function fetchAdminStats(): Promise<AdminStats> {
+  const data = await adminFetch<{ stats: AdminStats }>('/api/admin/stats', {
+    fallbackError: 'Не удалось загрузить статистику',
+  })
   return data.stats
 }
 
@@ -108,29 +139,11 @@ export interface FetchAdminUsersResponse {
   pagination: Pagination
 }
 
-export async function fetchAdminUsers(options?: FetchAdminUsersOptions): Promise<FetchAdminUsersResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.search) params.set('search', options.search)
-  if (options?.status) params.set('status', options.status)
-  if (options?.sortBy) params.set('sortBy', options.sortBy)
-  if (options?.sortOrder) params.set('sortOrder', options.sortOrder)
-
-  const url = `/api/admin/users${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить список пользователей')
-  }
-
-  return res.json()
+export function fetchAdminUsers(options?: FetchAdminUsersOptions): Promise<FetchAdminUsersResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/users', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить список пользователей' },
+  )
 }
 
 export interface FetchAdminUserDetailResponse {
@@ -139,57 +152,20 @@ export interface FetchAdminUserDetailResponse {
   worksheets: AdminWorksheet[]
 }
 
-export async function fetchAdminUserDetail(userId: string): Promise<FetchAdminUserDetailResponse> {
-  const res = await fetch(`/api/admin/users/${userId}`, {
-    credentials: 'include',
+export function fetchAdminUserDetail(userId: string): Promise<FetchAdminUserDetailResponse> {
+  return adminFetch(`/api/admin/users/${userId}`, {
+    fallbackError: 'Не удалось загрузить данные пользователя',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    if (res.status === 404) throw new Error('Пользователь не найден')
-    throw new Error('Не удалось загрузить данные пользователя')
-  }
-
-  return res.json()
 }
 
 // ==================== BLOCK/UNBLOCK ====================
 
-export async function blockUser(userId: string): Promise<void> {
-  const res = await fetch(`/api/admin/users/${userId}/block`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа')
-    if (res.status === 404) throw new Error('Пользователь не найден')
-    if (res.status === 400) {
-      const error = await res.json()
-      throw new Error(error.error || 'Ошибка блокировки')
-    }
-    throw new Error('Не удалось заблокировать пользователя')
-  }
+export function blockUser(userId: string): Promise<void> {
+  return adminPost(`/api/admin/users/${userId}/block`, undefined, 'Не удалось заблокировать пользователя')
 }
 
-export async function unblockUser(userId: string): Promise<void> {
-  const res = await fetch(`/api/admin/users/${userId}/unblock`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа')
-    if (res.status === 404) throw new Error('Пользователь не найден')
-    if (res.status === 400) {
-      const error = await res.json()
-      throw new Error(error.error || 'Ошибка разблокировки')
-    }
-    throw new Error('Не удалось разблокировать пользователя')
-  }
+export function unblockUser(userId: string): Promise<void> {
+  return adminPost(`/api/admin/users/${userId}/unblock`, undefined, 'Не удалось разблокировать пользователя')
 }
 
 // ==================== GENERATIONS ====================
@@ -208,27 +184,11 @@ export interface FetchAdminGenerationsResponse {
   pagination: Pagination
 }
 
-export async function fetchAdminGenerations(options?: FetchAdminGenerationsOptions): Promise<FetchAdminGenerationsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.subject) params.set('subject', options.subject)
-  if (options?.search) params.set('search', options.search)
-
-  const url = `/api/admin/generations${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить список генераций')
-  }
-
-  return res.json()
+export function fetchAdminGenerations(options?: FetchAdminGenerationsOptions): Promise<FetchAdminGenerationsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/generations', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить список генераций' },
+  )
 }
 
 // ==================== GENERATION ERROR LOGS ====================
@@ -256,26 +216,11 @@ export interface FetchGenerationLogsResponse {
   pagination: Pagination
 }
 
-export async function fetchGenerationLogs(options?: FetchGenerationLogsOptions): Promise<FetchGenerationLogsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.search) params.set('search', options.search)
-
-  const url = `/api/admin/generation-logs${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить логи генераций')
-  }
-
-  return res.json()
+export function fetchGenerationLogs(options?: FetchGenerationLogsOptions): Promise<FetchGenerationLogsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/generation-logs', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить логи генераций' },
+  )
 }
 
 // ==================== PAYMENTS ====================
@@ -294,27 +239,11 @@ export interface FetchAdminPaymentsResponse {
   pagination: Pagination
 }
 
-export async function fetchAdminPayments(options?: FetchAdminPaymentsOptions): Promise<FetchAdminPaymentsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.status) params.set('status', options.status)
-  if (options?.search) params.set('search', options.search)
-
-  const url = `/api/admin/payments${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить список платежей')
-  }
-
-  return res.json()
+export function fetchAdminPayments(options?: FetchAdminPaymentsOptions): Promise<FetchAdminPaymentsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/payments', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить список платежей' },
+  )
 }
 
 // ==================== STUCK GENERATIONS ====================
@@ -331,37 +260,14 @@ export interface StuckGeneration {
   createdAt: string
 }
 
-export async function fetchStuckGenerations(): Promise<{ stuckGenerations: StuckGeneration[] }> {
-  const res = await fetch('/api/admin/stuck-generations', {
-    credentials: 'include',
+export function fetchStuckGenerations(): Promise<{ stuckGenerations: StuckGeneration[] }> {
+  return adminFetch('/api/admin/stuck-generations', {
+    fallbackError: 'Не удалось загрузить зависшие генерации',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить зависшие генерации')
-  }
-
-  return res.json()
 }
 
-export async function forceFailGeneration(id: string, refund: boolean = true): Promise<{ success: boolean; refunded: boolean }> {
-  const res = await fetch(`/api/admin/stuck-generations/${id}/force-fail`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refund }),
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа')
-    if (res.status === 404) throw new Error('Генерация не найдена')
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data.error || data.message || 'Не удалось завершить генерацию')
-  }
-
-  return res.json()
+export function forceFailGeneration(id: string, refund: boolean = true): Promise<{ success: boolean; refunded: boolean }> {
+  return adminPost(`/api/admin/stuck-generations/${id}/force-fail`, { refund }, 'Не удалось завершить генерацию')
 }
 
 // ==================== PAYMENT INTENTS ====================
@@ -397,45 +303,15 @@ export interface FetchPaymentIntentsResponse {
   pagination: Pagination
 }
 
-export async function fetchPaymentIntents(options?: FetchPaymentIntentsOptions): Promise<FetchPaymentIntentsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.status) params.set('status', options.status)
-  if (options?.search) params.set('search', options.search)
-
-  const url = `/api/admin/payment-intents${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить платежные интенты')
-  }
-
-  return res.json()
+export function fetchPaymentIntents(options?: FetchPaymentIntentsOptions): Promise<FetchPaymentIntentsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/payment-intents', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить платежные интенты' },
+  )
 }
 
-export async function applyPaymentIntent(id: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`/api/admin/payment-intents/${id}/apply`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа')
-    if (res.status === 404) throw new Error('Платежный интент не найден')
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data.error || data.message || 'Не удалось применить оплату')
-  }
-
-  return res.json()
+export function applyPaymentIntent(id: string): Promise<{ success: boolean; message: string }> {
+  return adminPost(`/api/admin/payment-intents/${id}/apply`, undefined, 'Не удалось применить оплату')
 }
 
 // ==================== WEBHOOK EVENTS ====================
@@ -460,26 +336,11 @@ export interface FetchWebhookEventsResponse {
   pagination: Pagination
 }
 
-export async function fetchWebhookEvents(options?: FetchWebhookEventsOptions): Promise<FetchWebhookEventsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.provider) params.set('provider', options.provider)
-
-  const url = `/api/admin/webhook-events${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить вебхук-события')
-  }
-
-  return res.json()
+export function fetchWebhookEvents(options?: FetchWebhookEventsOptions): Promise<FetchWebhookEventsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/webhook-events', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить вебхук-события' },
+  )
 }
 
 // ==================== SUBSCRIPTIONS ====================
@@ -517,27 +378,11 @@ export interface FetchSubscriptionsResponse {
   pagination: Pagination
 }
 
-export async function fetchSubscriptions(options?: FetchSubscriptionsOptions): Promise<FetchSubscriptionsResponse> {
-  const params = new URLSearchParams()
-
-  if (options?.page) params.set('page', String(options.page))
-  if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.status) params.set('status', options.status)
-  if (options?.search) params.set('search', options.search)
-
-  const url = `/api/admin/subscriptions${params.toString() ? `?${params}` : ''}`
-
-  const res = await fetch(url, {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить подписки')
-  }
-
-  return res.json()
+export function fetchSubscriptions(options?: FetchSubscriptionsOptions): Promise<FetchSubscriptionsResponse> {
+  return adminFetch(
+    buildAdminUrl('/api/admin/subscriptions', options as Record<string, string | number | undefined>),
+    { fallbackError: 'Не удалось загрузить подписки' },
+  )
 }
 
 export function formatSubscriptionStatus(status: string): string {
@@ -573,32 +418,16 @@ export interface RevenueTrendPoint {
   transactions: number
 }
 
-export async function fetchSubscriberTrend(days: number = 30): Promise<{ trend: TrendPoint[] }> {
-  const res = await fetch(`/api/admin/stats/subscriber-trend?days=${days}`, {
-    credentials: 'include',
+export function fetchSubscriberTrend(days: number = 30): Promise<{ trend: TrendPoint[] }> {
+  return adminFetch(`/api/admin/stats/subscriber-trend?days=${days}`, {
+    fallbackError: 'Не удалось загрузить тренд подписчиков',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить тренд подписчиков')
-  }
-
-  return res.json()
 }
 
-export async function fetchRevenueTrend(days: number = 30): Promise<{ trend: RevenueTrendPoint[] }> {
-  const res = await fetch(`/api/admin/stats/revenue-trend?days=${days}`, {
-    credentials: 'include',
+export function fetchRevenueTrend(days: number = 30): Promise<{ trend: RevenueTrendPoint[] }> {
+  return adminFetch(`/api/admin/stats/revenue-trend?days=${days}`, {
+    fallbackError: 'Не удалось загрузить тренд выручки',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить тренд выручки')
-  }
-
-  return res.json()
 }
 
 // ==================== SETTINGS ====================
@@ -608,62 +437,23 @@ export interface AdminSettings {
   wantsAlerts: boolean
 }
 
-export async function fetchAdminSettings(): Promise<AdminSettings> {
-  const res = await fetch('/api/admin/settings', {
-    credentials: 'include',
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить настройки')
-  }
-
-  return res.json()
+export function fetchAdminSettings(): Promise<AdminSettings> {
+  return adminFetch('/api/admin/settings', { fallbackError: 'Не удалось загрузить настройки' })
 }
 
-export async function updateTelegramChatId(chatId: string): Promise<AdminSettings> {
-  const res = await fetch('/api/admin/settings/telegram', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId }),
-  })
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data.error || 'Не удалось сохранить Chat ID')
-  }
-
-  return res.json()
+export function updateTelegramChatId(chatId: string): Promise<AdminSettings> {
+  return adminPost('/api/admin/settings/telegram', { chatId }, 'Не удалось сохранить Chat ID')
 }
 
-export async function removeTelegramChatId(): Promise<AdminSettings> {
-  const res = await fetch('/api/admin/settings/telegram', {
+export function removeTelegramChatId(): Promise<AdminSettings> {
+  return adminFetch('/api/admin/settings/telegram', {
     method: 'DELETE',
-    credentials: 'include',
+    fallbackError: 'Не удалось отключить Telegram',
   })
-
-  if (!res.ok) {
-    throw new Error('Не удалось отключить Telegram')
-  }
-
-  return res.json()
 }
 
-export async function sendTestAlert(message?: string): Promise<{ success: boolean; sentCount: number; message: string }> {
-  const res = await fetch('/api/admin/test-alert', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ level: 'info', message }),
-  })
-
-  if (!res.ok) {
-    throw new Error('Не удалось отправить тестовый алерт')
-  }
-
-  return res.json()
+export function sendTestAlert(message?: string): Promise<{ success: boolean; sentCount: number; message: string }> {
+  return adminPost('/api/admin/test-alert', { level: 'info', message }, 'Не удалось отправить тестовый алерт')
 }
 
 // ==================== AI COSTS ====================
@@ -697,32 +487,16 @@ export interface AICostsDaily {
   calls: number
 }
 
-export async function fetchAICostsSummary(period: 'today' | 'week' | 'month' | 'all' = 'month'): Promise<AICostsSummary> {
-  const res = await fetch(`/api/admin/ai-costs/summary?period=${period}`, {
-    credentials: 'include',
+export function fetchAICostsSummary(period: 'today' | 'week' | 'month' | 'all' = 'month'): Promise<AICostsSummary> {
+  return adminFetch(`/api/admin/ai-costs/summary?period=${period}`, {
+    fallbackError: 'Не удалось загрузить данные о расходах AI',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить данные о расходах AI')
-  }
-
-  return res.json()
 }
 
-export async function fetchAICostsDaily(days: number = 30): Promise<{ daily: AICostsDaily[] }> {
-  const res = await fetch(`/api/admin/ai-costs/daily?days=${days}`, {
-    credentials: 'include',
+export function fetchAICostsDaily(days: number = 30): Promise<{ daily: AICostsDaily[] }> {
+  return adminFetch(`/api/admin/ai-costs/daily?days=${days}`, {
+    fallbackError: 'Не удалось загрузить данные о расходах AI',
   })
-
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('Требуется авторизация')
-    if (res.status === 403) throw new Error('Нет доступа к админ-панели')
-    throw new Error('Не удалось загрузить данные о расходах AI')
-  }
-
-  return res.json()
 }
 
 // ==================== HELPERS ====================
