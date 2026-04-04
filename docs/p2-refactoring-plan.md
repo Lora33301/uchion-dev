@@ -29,29 +29,13 @@ All changes on `staging` branch.
 
 ---
 
-## Task #24: Presentation generators — base class
+## ~~Task #24: Presentation generators — base class~~ DONE 05.04.2026
 
 **Problem**: 3 generators (770-865 lines each, ~2478 total). Identical: `contentElementsToRows()`, `getSectionNumber()`, main generation loop, `addWatermark()`, `addFooter()`.
 
 **Strategy**: Abstract base class
 
-1. **Create `api/_lib/presentations/base-slide-generator.ts`**:
-   - Shared: `contentElementsToRows()` (parameterize colors/fonts via `this.COLORS`/`this.getFontSizes()`)
-   - Shared: `getSectionNumber()` (byte-for-byte identical)
-   - Shared: main generation loop (10 slide type switch — identical)
-   - Shared: `addWatermark()`, `addFooter()`
-   - Abstract: 10 slide type methods, COLORS, FONTS
-
-2. **Refactor 3 generators** to extend base class:
-   - Remove duplicated infrastructure (~142 lines each)
-   - Keep: color definitions, decorative helpers, 10 slide handler implementations
-
-3. **Update `api/_lib/presentations/generator.ts`** — use class instances
-
-**Gotcha**: `contentElementsToRows()` has minor font size/color diffs per theme. Parameterize via base class properties (COLORS + font config).
-
-**Expected**: 2478 -> ~1200 lines (-52%). Risk: Medium.
-**Verify**: Generate presentation with each theme, compare output.
+**Result**: `BaseSlideGenerator` base class (212 lines) with shared `generate()` loop, `contentElementsToRows()` (parameterized via `contentFontSizes`/`contentSpacing`/color properties), `getSectionNumber()`, `addWatermark()`, `addFooter()`. 10 abstract slide-type methods. 3 subclasses: `MinimalismSlideGenerator`, `KidsSlideGenerator`, `SchoolSlideGenerator`. `generator.ts` uses class instances. 2478 -> 2213 lines (-11%), 0 duplicated infrastructure.
 
 ---
 

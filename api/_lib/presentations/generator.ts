@@ -1,8 +1,8 @@
 import PptxGenJS from 'pptxgenjs'
 import type { PresentationStructure, PresentationSlide, PresentationThemePreset, ContentElement } from '../../../shared/types.js'
-import { generateMinimalismPptx } from './minimalism-generator.js'
-import { generateKidsPptx } from './kids-generator.js'
-import { generateSchoolPptx } from './school-generator.js'
+import { MinimalismSlideGenerator } from './minimalism-generator.js'
+import { KidsSlideGenerator } from './kids-generator.js'
+import { SchoolSlideGenerator } from './school-generator.js'
 import { normalizeContent, getContentItemText } from './sanitize.js'
 
 // =============================================================================
@@ -699,13 +699,13 @@ export async function generatePptx(
 ): Promise<string> {
   // Use dedicated renderers for themes with custom styles
   if (themePreset === 'minimal') {
-    return generateMinimalismPptx(structure)
+    return new MinimalismSlideGenerator().generate(structure)
   }
   if (themePreset === 'kids') {
-    return generateKidsPptx(structure)
+    return new KidsSlideGenerator().generate(structure)
   }
   if (themePreset === 'school') {
-    return generateSchoolPptx(structure)
+    return new SchoolSlideGenerator().generate(structure)
   }
 
   const pres = new PptxGenJS()

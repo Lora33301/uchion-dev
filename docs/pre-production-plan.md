@@ -156,9 +156,9 @@
 `generateWorksheet()` = 430 строк с 6 ответственностями. JSON repair 3-уровневый try-catch.
 **Решение**: `JsonRepairUtil`, разделение на worksheet/presentation/task generators.
 
-### 24. Presentation generators — base class
+### 24. ~~Presentation generators — base class~~ DONE 05.04.2026
 3 файла (770-860 строк) с дублированными `contentElementsToRows`, `addWatermark`, 10 slide-функций.
-**Решение**: `BaseSlideGenerator` + `ThemeConfig`. 2400 → ~1000 строк.
+**Решение**: `BaseSlideGenerator` (212 строк) + 3 subclass. 2478 → 2213 строк, 0 дублированной инфраструктуры.
 
 ### 25. ~~GeneratePresentationFormSchema дублирована~~ DONE 01.04.2026
 Определена в `constants/generation.ts` и локально в `GeneratePresentationPage.tsx` с разницей в `.optional()`.
