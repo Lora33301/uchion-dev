@@ -6,31 +6,7 @@ import type { SubscriptionPlanId } from '../../shared/plans'
 import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import { useAuth } from '../lib/auth'
 
-// ==================== ICONS ====================
-
-function CheckIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-    </svg>
-  )
-}
-
-function XMarkIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
-function CrownIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M2.25 6.75l4.5 4.5 5.25-7.5 5.25 7.5 4.5-4.5-1.5 12h-16.5l-1.5-12z" />
-    </svg>
-  )
-}
+import { CheckIcon, XMarkIcon, CrownIcon } from '../components/ui/Icons'
 
 // ==================== PLAN FEATURES ====================
 

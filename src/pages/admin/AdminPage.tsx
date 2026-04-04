@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../lib/auth'
 import { fetchAdminStats, fetchSubscriberTrend, fetchRevenueTrend } from '../../lib/admin-api'
 import Header from '../../components/Header'
+import { PageSpinner } from '../../components/ui/LoadingSpinner'
 
 // Icon components
 function UsersIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -55,17 +56,6 @@ function CogIcon({ className = "w-5 h-5" }: { className?: string }) {
   )
 }
 
-function LoadingSpinner() {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-purple-50/50 to-white flex items-center justify-center">
-      <div className="relative">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-purple-200"></div>
-        <div className="absolute inset-0 animate-spin rounded-full h-12 w-12 border-t-2 border-[#8C52FF]"></div>
-      </div>
-    </div>
-  )
-}
-
 function AccessDenied() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-purple-50/50 to-white flex items-center justify-center">
@@ -107,7 +97,7 @@ export default function AdminPage() {
   }, [status, navigate])
 
   if (status === 'loading') {
-    return <LoadingSpinner />
+    return <PageSpinner />
   }
 
   if (!user || user.role !== 'admin') {

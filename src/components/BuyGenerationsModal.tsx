@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react'
+import { XMarkIcon } from './ui/Icons'
 
 interface BuyGenerationsModalProps {
   isOpen: boolean
   onClose: () => void
-}
-
-function CloseIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  )
 }
 
 // Pricing configuration
@@ -122,7 +115,7 @@ export default function BuyGenerationsModal({ isOpen, onClose }: BuyGenerationsM
             onClick={onClose}
             className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
-            <CloseIcon className="w-5 h-5 text-slate-400" />
+            <XMarkIcon className="w-5 h-5 text-slate-400" />
           </button>
 
           <h2 className="text-2xl font-bold text-center">

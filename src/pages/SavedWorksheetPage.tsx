@@ -17,16 +17,7 @@ import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import SidebarNav from '../components/worksheet/SidebarNav'
 import WorksheetHeader from '../components/worksheet/WorksheetHeader'
 
-function LoadingSpinner() {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-purple-50/50 to-white flex items-center justify-center">
-      <div className="relative">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-purple-200"></div>
-        <div className="absolute inset-0 animate-spin rounded-full h-12 w-12 border-t-2 border-[#8C52FF]"></div>
-      </div>
-    </div>
-  )
-}
+import { PageSpinner } from '../components/ui/LoadingSpinner'
 
 export default function SavedWorksheetPage() {
   const { id } = useParams()
@@ -141,7 +132,7 @@ export default function SavedWorksheetPage() {
   }
 
   if (status === 'loading' || isLoading || (status === 'authenticated' && isPending)) {
-    return <LoadingSpinner />
+    return <PageSpinner />
   }
 
   if (error) {
