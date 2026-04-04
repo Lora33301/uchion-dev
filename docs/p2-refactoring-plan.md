@@ -33,20 +33,13 @@ All changes on `staging` branch.
 
 ---
 
-## Task #21: AdminPaymentsPage refactor
+## ~~Task #21: AdminPaymentsPage refactor~~ DONE 04.04.2026
 
 **Problem**: 1045 lines, 4 tabs. SearchBar 3x, StatusFilter 3x, state+handlers 3x.
 
 **Strategy**: Extract admin shared components + hook
 
-1. **Create `src/components/admin/SearchBar.tsx`** — from lines 257-285 (duplicated 3x)
-2. **Create `src/components/admin/StatusFilterTabs.tsx`** — from lines 240-254 (duplicated 3x)
-3. **Create `src/hooks/useSearchableTable.ts`** — page/search/statusFilter state + handlers + useQuery
-4. **Create `src/components/admin/TableContainer.tsx`** — loading/empty/content wrapper
-5. **Simplify each tab** — keep only unique columns and actions
-6. **Also apply to** AdminUsersPage, AdminGenerationsPage (same patterns)
-
-**Expected**: 1045 -> ~650 lines (-38%). Risk: Low (admin only).
+**Result**: `AdminSearchBar`, `AdminStatusTabs`, `AdminPagination` components + `useSearchableTable` hook. 1045 -> 640 lines (-39%). Shared components ready for AdminUsersPage/AdminGenerationsPage.
 
 ---
 
