@@ -138,9 +138,9 @@
 
 ## P2 — ТЕХНИЧЕСКИЙ ДОЛГ (после стабилизации)
 
-### 20. WorksheetsListPage + PresentationsListPage — 500 строк дублирования
+### ~~20. WorksheetsListPage + PresentationsListPage — 500 строк дублирования~~ DONE 04.04.2026
 ~90% идентичный код: иконки, RenameModal, CreateFolderModal, Pagination, folder-логика.
-**Решение**: Общие компоненты в `src/components/common/`. Параметризованный `useListPageState` хук.
+**Решение**: `useListPage` хук + 5 shared компонентов в `src/components/list-page/`. Страницы: 690 -> 210 строк каждая.
 
 ### 21. ~~AdminPaymentsPage — 1068 строк, 3x дублированная логика~~ DONE 04.04.2026
 Три вкладки с copy-paste Search/Pagination. Два разных Pagination в проекте.

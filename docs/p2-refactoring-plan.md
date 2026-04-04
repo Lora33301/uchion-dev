@@ -9,27 +9,13 @@ All changes on `staging` branch.
 
 ---
 
-## Task #20: WorksheetsListPage + PresentationsListPage dedup
+## ~~Task #20: WorksheetsListPage + PresentationsListPage dedup~~ DONE 04.04.2026
 
 **Problem**: 94% code duplication (~690 lines each). Identical modals, state, mutations, pagination, folder logic.
 
 **Strategy**: Config-driven generic ListPage
 
-1. **Create `src/components/list-page/ListPageModals.tsx`** — extract RenameModal, MoveToFolderModal, CreateFolderModal (200 lines saved)
-2. **Create `src/components/list-page/Pagination.tsx`** — identical in both files (50 lines)
-3. **Create `src/hooks/useListPage.ts`** — all useState + useEffect + mutations + handlers, parameterized by `{ queryKey, fetchFn, deleteFn, updateFn }` (150 lines/file saved)
-4. **Create `src/components/list-page/FolderSidebar.tsx`** — folder filter section
-5. **Simplify both pages to ~100-120 lines** — only define title, icons, card renderer
-
-**Key diffs to parameterize**:
-- `queryKey`: `['worksheets', folderId]` vs `['presentations', 'list', folderId]`
-- `folderCountKey`: `worksheetCount` vs `presentationCount`
-- `getDisplayTitle()`: worksheets has subject+grade fallback
-- Card metadata: worksheets show topic, presentations show subject+grade+slideCount
-- Icons: DocumentIcon vs PresentationIcon
-- Paths: `/worksheets/:id` vs `/presentations/:id`
-
-**Expected**: 1382 -> ~450 lines (-67%). Risk: Low.
+**Result**: Extracted `useListPage` hook + 5 shared components (`RenameModal`, `MoveToFolderModal`, `CreateFolderModal`, `ListPagePagination`, `FolderFilter`). Pages reduced from ~690 to ~210 lines each. 1382 -> 1009 lines total (-27%), 0 duplication.
 
 ---
 
