@@ -38,6 +38,8 @@ export function isStemSubject(subject: string): boolean {
 const LIGHTWEIGHT_VERIFICATION_SUBJECTS = new Set([
   'russian', 'literature', 'history', 'social_studies',
   'english', 'music', 'obzh',
+  // NOTE: world_around and technology are intentionally NOT here —
+  // they get the stronger reasoning model as safe default.
 ])
 
 /**
