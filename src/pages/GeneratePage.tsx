@@ -506,7 +506,7 @@ export default function GeneratePage() {
         }`}>
           {/* Top row: Subject + Grade */}
           <div className="flex border-b border-[#e8deff]">
-            <div className="flex-[2] min-w-0 px-4 py-3">
+            <div key={`subject-${mode}`} className="flex-[2] min-w-0 px-4 py-3">
               <Controller
                 control={mode === 'worksheet' ? form.control : presentationForm.control}
                 name="subject"
@@ -524,7 +524,7 @@ export default function GeneratePage() {
               />
             </div>
             <div className="w-px bg-[#e8deff] my-2" />
-            <div className="w-[90px] px-3 py-3">
+            <div key={`grade-${mode}`} className="w-[90px] px-3 py-3">
               <Controller
                 control={mode === 'worksheet' ? form.control : presentationForm.control}
                 name="grade"
@@ -538,6 +538,7 @@ export default function GeneratePage() {
           {/* Bottom row: Topic + Submit */}
           <div className="flex items-center gap-2 px-4 py-2">
             <input
+              key={mode}
               type="text"
               placeholder="Тема: Сложение двузначных чисел"
               className="flex-1 min-w-0 py-2 text-base text-[#1e293b] placeholder:text-[#94a3b8] outline-none bg-transparent"
