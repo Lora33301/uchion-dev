@@ -18,6 +18,7 @@ const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'))
 const PaymentCancelPage = lazy(() => import('./pages/PaymentCancelPage'))
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
 
 // Admin pages -- lazy-loaded into a separate chunk.
 // The AdminPage layout itself checks the user role before rendering,
@@ -69,6 +70,9 @@ export default function App() {
 
         {/* Pricing */}
         <Route path="/pricing" element={<Suspense fallback={<PageFallback />}><PricingPage /></Suspense>} />
+
+        {/* About */}
+        <Route path="/about" element={<Suspense fallback={<PageFallback />}><AboutPage /></Suspense>} />
 
         {/* Legal docs */}
         <Route path="/legal/:slug" element={<Suspense fallback={<PageFallback />}><LegalDocPage /></Suspense>} />
