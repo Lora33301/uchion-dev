@@ -457,7 +457,7 @@ export async function handleSubscriptionWebhook(
   // Wrap processing in try/catch: if anything fails after marking the event,
   // unmark it so Prodamus can retry the webhook
   try {
-    return await processSubscriptionEvent(payload, sub, userId, planFromParam, prodamusSubId, prodamusProfileId, paymentStatus, isAutopayment, subscriptionInactive, res)
+    return await processSubscriptionEvent(payload, sub, userId!, planFromParam, prodamusSubId, prodamusProfileId, paymentStatus, isAutopayment, subscriptionInactive, res)
   } catch (error) {
     // Unmark the event so it can be retried on next webhook
     await tryUnmarkEventProcessed('prodamus_subscription', eventKey)
@@ -472,7 +472,7 @@ export async function handleSubscriptionWebhook(
 async function processSubscriptionEvent(
   payload: ProdamusWebhookPayload,
   sub: NonNullable<ProdamusWebhookPayload['subscription']>,
-  userId: string | undefined,
+  userId: string,
   planFromParam: string | undefined,
   prodamusSubId: string,
   prodamusProfileId: string,
