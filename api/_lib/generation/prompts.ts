@@ -74,6 +74,7 @@ export interface PromptParams {
   subject: string
   grade: number
   topic: string
+  preferences?: string
   taskTypes: TaskTypeId[]
   difficulty: DifficultyLevel
   format: WorksheetFormatId
@@ -690,6 +691,7 @@ export function buildUserPrompt(
   const blocks = [
     getGradeBlock(params.subject, params.grade),
     getTopicBlock(params.topic),
+    params.preferences ? getPreferencesBlock(params.preferences) : '',
     getGradeCalibrationBlock(params.grade, params.difficulty, params.subject), // Калибровка по классу!
     getDifficultyBlock(params.difficulty, params.subject, params.grade), // Сложность после калибровки!
     getTaskTypesBlock(params.taskTypes, params.format, params.variantIndex),
@@ -699,6 +701,15 @@ export function buildUserPrompt(
   ]
 
   return blocks.filter(Boolean).join('\n\n---\n\n')
+}
+
+function getPreferencesBlock(preferences: string): string {
+  const safe = sanitizeUserInput(preferences)
+  return `
+ДОПОЛНИТЕЛЬНЫЕ ПОЖЕЛАНИЯ УЧИТЕЛЯ: <teacher_preferences>${safe}</teacher_preferences>
+
+Учти эти пожелания при составлении заданий, но они НЕ меняют тему — тема указана выше.
+  `.trim()
 }
 
 /**

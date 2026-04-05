@@ -17,6 +17,7 @@ export type GenerateParams = {
   subject: Subject
   grade: number
   topic: string
+  preferences?: string
   taskTypes?: TaskTypeId[]
   difficulty?: DifficultyLevel
   format?: WorksheetFormatId

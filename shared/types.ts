@@ -138,6 +138,7 @@ export type GeneratePresentationPayload = {
   subject?: string
   grade?: number
   topic?: string
+  preferences?: string
   themeType: 'preset' | 'custom'
   themePreset?: PresentationThemePreset
   themeCustom?: string

@@ -66,6 +66,7 @@ export const GenerateSchema = z.object({
   subject: z.string().min(1).max(100).optional(),
   grade: z.number().int().min(1).max(11).optional(),
   topic: z.string().min(3).max(200).optional(),
+  preferences: z.string().max(500).optional(),
   folderId: z.string().uuid().nullable().optional(),
   taskTypes: z.array(TaskTypeIdSchema).min(1).max(5).optional(),
   difficulty: DifficultyLevelSchema.optional(),
@@ -82,6 +83,7 @@ export type GeneratePayload = {
   subject?: string
   grade?: number
   topic?: string
+  preferences?: string
   folderId?: string | null
   taskTypes?: TaskTypeId[]
   difficulty?: DifficultyLevel
@@ -94,6 +96,7 @@ export type ResolvedGeneratePayload = {
   subject: string
   grade: number
   topic: string
+  preferences?: string
   folderId?: string | null
   taskTypes?: TaskTypeId[]
   difficulty?: DifficultyLevel

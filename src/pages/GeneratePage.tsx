@@ -35,13 +35,12 @@ import type { GenerateMode } from '../components/generation/types'
 // Helpers
 // =============================================================================
 
-function assemblePrompt(subject: string, grade: number, topic: string, preferences?: string): string {
-  return `${subject} ${grade} класс, ${topic}${preferences ? '. ' + preferences : ''}`
-}
-
 function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
   return {
-    prompt: assemblePrompt(v.subject, v.grade, v.topic, v.preferences),
+    subject: v.subject,
+    grade: v.grade,
+    topic: v.topic,
+    preferences: v.preferences || undefined,
     folderId: v.folderId,
     taskTypes: v.taskTypes,
     difficulty: v.difficulty,
@@ -52,7 +51,10 @@ function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
   return {
-    prompt: assemblePrompt(v.subject, v.grade, v.topic, v.preferences),
+    subject: v.subject,
+    grade: v.grade,
+    topic: v.topic,
+    preferences: v.preferences || undefined,
     themeType: v.themeType,
     themePreset: v.themePreset,
     slideCount: v.slideCount,

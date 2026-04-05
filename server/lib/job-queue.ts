@@ -11,6 +11,7 @@ export interface WorksheetJobData {
   subject: Subject
   grade: number
   topic: string
+  preferences?: string
   taskTypes?: string[]
   difficulty?: string
   format?: string
@@ -90,6 +91,7 @@ export async function initQueues(): Promise<void> {
               subject: data.subject,
               grade: data.grade,
               topic: data.topic,
+              preferences: data.preferences,
               taskTypes: data.taskTypes,
               difficulty: data.difficulty,
               format: data.format,

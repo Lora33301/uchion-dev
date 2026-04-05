@@ -63,6 +63,7 @@ export class OpenAIProvider implements AIProvider {
       subject: params.subject,
       grade: params.grade,
       topic: params.topic,
+      preferences: params.preferences,
       taskTypes,
       difficulty,
       format,

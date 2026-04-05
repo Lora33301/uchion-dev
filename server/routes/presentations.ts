@@ -32,6 +32,7 @@ const InputSchema = z.object({
   subject: z.string().min(1).max(100).optional(),
   grade: z.number().int().min(1).max(11).optional(),
   topic: z.string().min(3).max(200).optional(),
+  preferences: z.string().max(500).optional(),
   themeType: z.literal('preset'),
   themePreset: z.enum(['professional', 'kids', 'school']).optional(),
   slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
@@ -79,11 +80,16 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     resolvedTopic = rawInput.topic!
   }
 
+  // topic is clean (for display/DB), aiTopic includes preferences (for AI prompt)
+  const preferences = rawInput.preferences?.trim()
+  const aiTopic = preferences ? `${resolvedTopic}. ${preferences}` : resolvedTopic
+
   const input = {
     ...rawInput,
     subject: resolvedSubject,
     grade: resolvedGrade,
     topic: resolvedTopic,
+    aiTopic,
   }
 
   // 2. Check themePreset is provided
@@ -207,7 +213,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
       const jobData: PresentationJobData = {
         subject: input.subject,
         grade: input.grade,
-        topic: input.topic,
+        topic: input.aiTopic,
         themePreset: input.themePreset!,
         slideCount: slideCount,
         isPaid,
@@ -257,7 +263,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
         () => provider.generatePresentation({
           subject: input.subject,
           grade: input.grade,
-          topic: input.topic,
+          topic: input.aiTopic,
           themeType: 'preset',
           themePreset: input.themePreset,
           slideCount: input.slideCount as 12 | 18 | 24 | undefined,

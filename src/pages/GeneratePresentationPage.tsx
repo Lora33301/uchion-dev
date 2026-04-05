@@ -21,8 +21,15 @@ import {
 // =============================================================================
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
-  const prompt = `${v.subject} ${v.grade} класс, ${v.topic}${v.preferences ? '. ' + v.preferences : ''}`
-  return { prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+  return {
+    subject: v.subject,
+    grade: v.grade,
+    topic: v.topic,
+    preferences: v.preferences || undefined,
+    themeType: v.themeType,
+    themePreset: v.themePreset,
+    slideCount: v.slideCount,
+  }
 }
 
 // Get greeting based on time of day
