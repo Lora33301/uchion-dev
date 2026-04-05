@@ -234,7 +234,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-xs text-emerald-600 uppercase tracking-wider font-semibold">+1 генерация</span>
-                <p className="text-sm font-bold text-emerald-700">Подпишись на ТГ-канал</p>
+                <p className="text-sm font-bold text-emerald-700">Подпишись на рассылку</p>
               </div>
             </div>
           )}
