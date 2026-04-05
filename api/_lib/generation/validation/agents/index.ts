@@ -2,7 +2,7 @@ import { verifyAnswers } from './answer-verifier.js'
 import { checkQualityAndContent } from './unified-checker.js'
 import { checkDifficulty } from './difficulty-checker.js'
 import { fixTask, MAX_FIXES_PER_GENERATION, type FixResult } from './task-fixer.js'
-import { usesLightweightVerification, type VerifierModelConfig } from '../../../ai-models.js'
+import { usesLightweightVerification, getVerifierModelConfig, type VerifierModelConfig } from '../../../ai-models.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { DifficultyLevel } from '../../config/difficulty.js'
 
@@ -97,10 +97,10 @@ function collectTasksWithErrors(
     .sort((a, b) => a.taskIndex - b.taskIndex)
 }
 
-/** Model config for confirmation gate — always uses reasoning model */
+/** Model config for confirmation gate — always uses reasoning model.
+ *  Delegates to getVerifierModelConfig with a non-lightweight key to get gemini-3-flash. */
 function getConfirmationModelConfig(): VerifierModelConfig {
-  const model = process.env.AI_MODEL_VERIFIER_STEM || 'google/gemini-3-flash-preview'
-  return { model, reasoning: { effort: 'low' } }
+  return getVerifierModelConfig('_confirmation_gate')
 }
 
 // =============================================================================
@@ -169,13 +169,19 @@ export async function runMultiAgentValidation(
       const confirmationModel = getConfirmationModelConfig()
       const confirmation = await verifyAnswers(errorTasksList, params.subject, params.grade, confirmationModel)
 
-      confirmedErrors = []
-      for (let i = 0; i < tasksWithErrors.length; i++) {
-        const confirmResult = confirmation.tasks.find(t => t.taskIndex === i)
-        if (confirmResult?.status === 'error') {
-          confirmedErrors.push(tasksWithErrors[i])
-        } else {
-          console.log(`[УчиОн] Task ${tasksWithErrors[i].taskIndex} error not confirmed (false positive), skipping fix`)
+      // If confirmation agent failed (no real task results), skip the gate and fix all flagged errors
+      const hasRealResults = confirmation.tasks.some(t => t.taskIndex >= 0)
+      if (!hasRealResults) {
+        console.log(`[УчиОн] Confirmation gate returned no task results (agent may have failed), proceeding with all ${tasksWithErrors.length} flagged errors`)
+      } else {
+        confirmedErrors = []
+        for (let i = 0; i < tasksWithErrors.length; i++) {
+          const confirmResult = confirmation.tasks.find(t => t.taskIndex === i)
+          if (confirmResult?.status === 'error') {
+            confirmedErrors.push(tasksWithErrors[i])
+          } else {
+            console.log(`[УчиОн] Task ${tasksWithErrors[i].taskIndex} error not confirmed (false positive), skipping fix`)
+          }
         }
       }
 
