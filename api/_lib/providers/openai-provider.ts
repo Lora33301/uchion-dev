@@ -26,6 +26,7 @@ import type { AIProvider, GenerateParams, GeneratePresentationParams, Regenerate
 import { parseGeneratedJson } from './json-repair.js'
 import { splitTasks, retryMissingTasks, backfillTasks } from './task-retry.js'
 import { convertToWorksheet, convertSingleTask } from './worksheet-converter.js'
+import { shuffleTasksOptions } from '../generation/shuffle-options.js'
 
 // =============================================================================
 // OpenAIProvider - real generation via AI
@@ -180,7 +181,7 @@ export class OpenAIProvider implements AIProvider {
 
     const finalTasks = agentValidation.fixedTasks
     const testOffset = split.testTasks.length
-    split.testTasks = finalTasks.slice(0, testOffset) as typeof split.testTasks
+    split.testTasks = shuffleTasksOptions(finalTasks.slice(0, testOffset)) as typeof split.testTasks
     split.openTasksList = finalTasks.slice(testOffset) as typeof split.openTasksList
 
     const worksheet = convertToWorksheet(params, split.testTasks, split.openTasksList, testQuestions, openTasks)
@@ -273,7 +274,8 @@ ${taskTypeConfig.promptInstruction}
       throw new Error('AI_ERROR')
     }
 
-    return convertSingleTask(task, params.isTest)
+    const [shuffled] = shuffleTasksOptions([task])
+    return convertSingleTask(shuffled, params.isTest)
   }
 
   /**
