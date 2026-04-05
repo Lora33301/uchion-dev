@@ -212,6 +212,19 @@ function slugify(name: string): string {
     .replace(/^_|_$/g, '')
 }
 
+/**
+ * Normalize a subject string to an internal slug ID.
+ * Known Russian names (e.g. "Биология") -> slug ("biology").
+ * Already-slug values (e.g. "biology") pass through unchanged.
+ * Unknown names get transliterated to a slug.
+ */
+export function normalizeSubject(subject: string): string {
+  // If it's already a known slug, return as-is
+  if (SUBJECT_PATTERNS.some(sp => sp.id === subject)) return subject
+  // Try to map Russian name to slug
+  return mapSubjectNameToId(subject) || slugify(subject)
+}
+
 /** Subject ID -> Russian display name (for formatSubjectName and generic prompts) */
 export const KNOWN_SUBJECT_NAMES: Record<string, string> = Object.fromEntries(
   SUBJECT_PATTERNS.map(sp => [sp.id, sp.name])

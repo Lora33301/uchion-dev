@@ -17,7 +17,7 @@ import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter
 import { isQueueAvailable, getPresentationQueue, getPresentationEvents, type PresentationJobData } from '../lib/job-queue.js'
 import { bridgeJobToSSE } from '../lib/sse-bridge.js'
 import type { PresentationStructure } from '../../shared/types.js'
-import { parsePrompt } from '../../api/_lib/generation/parse-prompt.js'
+import { parsePrompt, normalizeSubject } from '../../api/_lib/generation/parse-prompt.js'
 
 const router = Router()
 
@@ -63,7 +63,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
   if (rawInput.prompt) {
     try {
       const parsed = await parsePrompt(rawInput.prompt)
-      resolvedSubject = rawInput.subject || parsed.subject
+      resolvedSubject = normalizeSubject(rawInput.subject || parsed.subject)
       resolvedGrade = rawInput.grade ?? parsed.grade
       resolvedTopic = rawInput.topic || parsed.topic
     } catch (parseErr) {
@@ -75,7 +75,7 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
       })
     }
   } else {
-    resolvedSubject = rawInput.subject!
+    resolvedSubject = normalizeSubject(rawInput.subject!)
     resolvedGrade = rawInput.grade!
     resolvedTopic = rawInput.topic!
   }

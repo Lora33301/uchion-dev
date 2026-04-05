@@ -13,7 +13,7 @@ import type { AuthenticatedRequest } from '../types.js'
 import { withAIContext } from '../../api/_lib/ai-usage.js'
 import type { GeneratePayload, ResolvedGeneratePayload, Worksheet } from '../../shared/types.js'
 import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchema } from '../../shared/worksheet.js'
-import { parsePrompt } from '../../api/_lib/generation/parse-prompt.js'
+import { parsePrompt, normalizeSubject } from '../../api/_lib/generation/parse-prompt.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
 import { calculateGenerationCost } from '../../api/_lib/generation/config/worksheet-formats.js'
 import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
@@ -47,7 +47,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     try {
       const parsed = await parsePrompt(raw.prompt)
       resolved = {
-        subject: raw.subject || parsed.subject,
+        subject: normalizeSubject(raw.subject || parsed.subject),
         grade: raw.grade ?? parsed.grade,
         topic: raw.topic || parsed.topic,
         preferences: raw.preferences,
@@ -67,7 +67,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     }
   } else if (raw.subject && raw.grade != null && raw.topic) {
     resolved = {
-      subject: raw.subject,
+      subject: normalizeSubject(raw.subject),
       grade: raw.grade,
       topic: raw.topic,
       preferences: raw.preferences,
@@ -548,11 +548,12 @@ router.post('/regenerate-task', withAuth(async (req: AuthenticatedRequest, res: 
     const isPaid = planConfig.paidModel || req.user.hasPaidAccess || req.user.role === 'admin'
 
     const ai = getAIProvider()
+    const normalizedSubject = normalizeSubject(input.context.subject)
     const aiSessionId = crypto.randomUUID()
     const result = await generationLimiter(() => withAIContext(
-      { sessionId: aiSessionId, userId, subject: input.context.subject, grade: input.context.grade },
+      { sessionId: aiSessionId, userId, subject: normalizedSubject, grade: input.context.grade },
       () => ai.regenerateTask({
-        subject: input.context.subject,
+        subject: normalizedSubject,
         grade: input.context.grade,
         topic: input.context.topic,
         difficulty: input.context.difficulty,
