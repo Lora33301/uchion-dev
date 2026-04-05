@@ -219,29 +219,8 @@ export function formatPlanName(plan: string): string {
   return names[plan] || plan
 }
 
-// Helper to format subject name
-export function formatSubjectName(subject: string): string {
-  const names: Record<string, string> = {
-    math: 'Математика',
-    algebra: 'Алгебра',
-    geometry: 'Геометрия',
-    russian: 'Русский язык',
-    physics: 'Физика',
-    chemistry: 'Химия',
-    biology: 'Биология',
-    history: 'История',
-    social_studies: 'Обществознание',
-    geography: 'География',
-    literature: 'Литература',
-    informatics: 'Информатика',
-    english: 'Английский язык',
-    world_around: 'Окружающий мир',
-    obzh: 'ОБЖ',
-    music: 'Музыка',
-    technology: 'Технология',
-  }
-  return names[subject] || subject
-}
+// Helper to format subject name — re-exported from shared
+export { formatSubjectName } from '../../shared/types'
 
 // Helper to format difficulty
 export function formatDifficulty(difficulty: string): string {

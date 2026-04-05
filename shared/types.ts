@@ -1,6 +1,35 @@
 export * from './worksheet'
 import type { Worksheet, WorksheetJson, Subject } from './worksheet'
 
+/** Known subject ID -> Russian display name. Shared between frontend & backend. */
+export const SUBJECT_DISPLAY_NAMES: Record<string, string> = {
+  math: 'Математика',
+  algebra: 'Алгебра',
+  geometry: 'Геометрия',
+  russian: 'Русский язык',
+  physics: 'Физика',
+  chemistry: 'Химия',
+  biology: 'Биология',
+  history: 'История',
+  social_studies: 'Обществознание',
+  geography: 'География',
+  literature: 'Литература',
+  informatics: 'Информатика',
+  english: 'Английский язык',
+  world_around: 'Окружающий мир',
+  obzh: 'ОБЖ',
+  music: 'Музыка',
+  technology: 'Технология',
+}
+
+/** Format subject ID to display name. Falls back to capitalized slug for unknown subjects. */
+export function formatSubjectName(subject: string | null | undefined): string {
+  if (!subject) return 'Неизвестно'
+  if (SUBJECT_DISPLAY_NAMES[subject]) return SUBJECT_DISPLAY_NAMES[subject]
+  // Unknown slug — capitalize first letter, replace underscores with spaces
+  return subject.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+}
+
 export interface WorksheetWithJson extends Worksheet {
   json?: WorksheetJson
   validationStatus?: 'OK' | 'FAIL'

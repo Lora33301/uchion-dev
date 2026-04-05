@@ -548,14 +548,7 @@ export function formatPaymentIntentStatus(status: string): string {
   return names[status] || status
 }
 
-export function formatSubjectName(subject: string | null): string {
-  if (!subject) return 'Неизвестно'
-  const names: Record<string, string> = {
-    math: 'Математика',
-    russian: 'Русский язык',
-  }
-  return names[subject] || subject
-}
+export { formatSubjectName } from '../../shared/types'
 
 export function formatDifficulty(difficulty: string | null): string {
   if (!difficulty) return 'Средний'
