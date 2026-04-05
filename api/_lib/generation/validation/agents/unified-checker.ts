@@ -3,6 +3,7 @@ import { getAgentsModel } from '../../../ai-models.js'
 import { trackFromContext } from '../../../ai-usage.js'
 import { safeJsonParse } from './safe-json-parse.js'
 import { getGradeConfig } from '../../config/index.js'
+import { KNOWN_SUBJECT_NAMES } from '../../parse-prompt.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { DifficultyLevel } from '../../config/difficulty.js'
 import type { AgentResult, AgentTaskResult, AgentIssue } from './index.js'
@@ -97,6 +98,23 @@ ${CRITICAL_CHECKS}`,
 ${CRITICAL_CHECKS}`,
 }
 
+function getUnifiedCheckerPrompt(subject: string): string {
+  if (SUBJECT_PROMPTS[subject]) return SUBJECT_PROMPTS[subject]
+
+  const subjectName = KNOWN_SUBJECT_NAMES[subject] || subject
+  return `Ты — методист по предмету "${subjectName}". Проверь качество и соответствие каждого задания.
+
+КОРРЕКТНОСТЬ ФОРМУЛИРОВКИ:
+- Условие задания полное и однозначное
+- Используемые термины и факты корректны для предмета "${subjectName}"
+- Задание имеет однозначное решение/ответ
+
+ВАРИАНТЫ ОТВЕТОВ (для тестов):
+- Среди вариантов ДОЛЖЕН быть правильный
+- Неправильные варианты — правдоподобные (типичные ошибки учеников)
+${CRITICAL_CHECKS}`
+}
+
 function formatTaskForPrompt(task: GeneratedTask, index: number): string {
   const parts = [`--- Задание ${index} (тип: ${task.type}) ---`]
 
@@ -167,13 +185,13 @@ export async function checkQualityAndContent(
   }
 
   const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) })
-  const subjectPrompt = SUBJECT_PROMPTS[subject] || SUBJECT_PROMPTS.math
+  const subjectPrompt = getUnifiedCheckerPrompt(subject)
   const difficultyName = DIFFICULTY_NAMES[difficulty] || difficulty
-  const subjectName = SUBJECT_NAMES[subject] || subject
+  const subjectName = SUBJECT_NAMES[subject] || KNOWN_SUBJECT_NAMES[subject] || subject
 
   // Get topics from grade config
   const gradeConfig = getGradeConfig(subject, grade as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11)
-  const gradeTopics = gradeConfig?.topics?.join(', ') || 'не найдены'
+  const gradeTopics = gradeConfig?.topics?.join(', ') || null
 
   const tasksText = tasks.map((t, i) => formatTaskForPrompt(t, i)).join('\n\n')
 
@@ -184,7 +202,7 @@ export async function checkQualityAndContent(
 Тема: "${topic}"
 Уровень сложности: ${difficultyName} (${difficulty})
 
-Темы программы ${grade} класса: ${gradeTopics}
+${gradeTopics ? `Темы программы ${grade} класса: ${gradeTopics}` : `Предмет "${subjectName}" — проверяй по общим знаниям программы ${grade} класса`}
 
 КРИТЕРИИ СЛОЖНОСТИ:
 - easy: 1-2 действия, простые примеры, прямое применение правил
