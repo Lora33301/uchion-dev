@@ -1,190 +1,78 @@
 import { Controller } from 'react-hook-form'
 import type { UseFormReturn } from 'react-hook-form'
 import CustomSelect from '../ui/CustomSelect'
-import GenerationErrorMessage from './GenerationErrorMessage'
 import {
   DIFFICULTIES,
   FORMATS,
   TASK_TYPES,
+  getTaskCountOptions,
   type TaskTypeId,
   type GenerateFormValues,
 } from '../../constants/generation'
 
 interface WorksheetGenerateFormProps {
   form: UseFormReturn<GenerateFormValues>
-  currentFormat: typeof FORMATS[number] | undefined
-  currentVariant: typeof FORMATS[number]['variants'][number] | undefined
-  generationCost: number
-  showAdvanced: boolean
-  errorText: string | null
-  errorCode: string | null
+  currentVariant: { openTasks: number; testQuestions: number } | undefined
   onToggleTaskType: (typeId: TaskTypeId) => void
-  onOpenBuyModal: () => void
   user: { id: string } | null
   folders: { id: string; name: string }[]
 }
 
 export default function WorksheetGenerateForm({
   form,
-  currentFormat,
   currentVariant,
-  showAdvanced,
-  errorText,
-  errorCode,
   onToggleTaskType,
-  onOpenBuyModal,
   user,
   folders,
 }: WorksheetGenerateFormProps) {
   const watchFormat = form.watch('format')
   const watchVariantIndex = form.watch('variantIndex')
   const watchTaskTypes = form.watch('taskTypes')
-
-  if (!showAdvanced) {
-    return (
-      <>
-        {/* Folder selector when advanced is collapsed — only for authenticated users with folders */}
-        {user && folders.length > 0 && (
-          <div className="w-full bg-white rounded-2xl p-6 shadow-sm border border-purple-100">
-            <Controller
-              control={form.control}
-              name="folderId"
-              render={({ field }) => (
-                <CustomSelect
-                  label="Сохранить в папку"
-                  value={field.value ?? ''}
-                  onChange={(val) => field.onChange(val === '' ? null : val)}
-                  options={[
-                    { label: 'Без папки', value: '' },
-                    ...folders.map(f => ({ label: f.name, value: f.id }))
-                  ]}
-                />
-              )}
-            />
-          </div>
-        )}
-        {/* Error message */}
-        {errorText && (
-          <GenerationErrorMessage
-            errorText={errorText}
-            errorCode={errorCode}
-            onOpenBuyModal={onOpenBuyModal}
-          />
-        )}
-      </>
-    )
-  }
+  const watchDifficulty = form.watch('difficulty')
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-      {/* Folder selector */}
-      {user && folders.length > 0 && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-purple-100">
+    <div className="w-full space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+      {/* Row 1: Three dropdowns */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
           <Controller
             control={form.control}
-            name="folderId"
+            name="variantIndex"
             render={({ field }) => (
               <CustomSelect
-                label="Сохранить в папку"
-                value={field.value ?? ''}
-                onChange={(val) => field.onChange(val === '' ? null : val)}
-                options={[
-                  { label: 'Без папки', value: '' },
-                  ...folders.map(f => ({ label: f.name, value: f.id }))
-                ]}
+                label="Кол-во заданий"
+                value={field.value}
+                onChange={(val) => field.onChange(val as number)}
+                options={getTaskCountOptions(watchFormat)}
               />
             )}
           />
         </div>
-      )}
-
-      {/* Format selection card */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-        <h3 className="text-lg font-semibold text-slate-800 text-left mb-5">Формат листа</h3>
-
-        {/* Format tabs */}
-        <div className="flex gap-3 mb-6 flex-wrap">
-          {FORMATS.map(format => (
-            <button
-              key={format.id}
-              type="button"
-              onClick={() => {
-                form.setValue('format', format.id)
-                form.setValue('variantIndex', 0)
-              }}
-              className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                watchFormat === format.id
-                  ? 'border-[#8C52FF] bg-purple-50 text-slate-800'
-                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-              }`}
-            >
-              {format.name}
-            </button>
-          ))}
+        <div className="flex-1">
+          <CustomSelect
+            label="Сложность"
+            value={watchDifficulty}
+            onChange={(val) => form.setValue('difficulty', val as typeof watchDifficulty)}
+            options={DIFFICULTIES.map(d => ({ label: d.label, value: d.value }))}
+          />
         </div>
-
-        {/* Variant selection */}
-        {currentFormat && (
-          <div className="flex gap-4 flex-wrap">
-            {currentFormat.variants.map((variant, idx) => {
-              const description = variant.openTasks > 0 && variant.testQuestions > 0
-                ? `${variant.openTasks} заданий + ${variant.testQuestions} тест. вопросов`
-                : variant.openTasks > 0
-                ? `${variant.openTasks} заданий`
-                : `${variant.testQuestions} тест. вопросов`
-
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => form.setValue('variantIndex', idx)}
-                  className={`flex items-center gap-3 px-5 py-4 rounded-xl border-2 transition-all ${
-                    watchVariantIndex === idx
-                      ? 'border-[#8C52FF] bg-purple-50 text-slate-800'
-                      : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-                  }`}
-                >
-                  <span className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                    watchVariantIndex === idx ? 'bg-[#8C52FF] text-white' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {variant.generations}
-                  </span>
-                  <div className="text-left">
-                    <div className="text-sm font-medium">{description}</div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Difficulty selection */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-        <h3 className="text-lg font-semibold text-slate-800 text-left mb-5">Уровень сложности</h3>
-        <div className="flex gap-4 flex-wrap">
-          {DIFFICULTIES.map(diff => (
-            <button
-              key={diff.value}
-              type="button"
-              onClick={() => form.setValue('difficulty', diff.value)}
-              className={`flex-1 min-w-[140px] px-5 py-4 rounded-xl border-2 transition-all ${
-                form.watch('difficulty') === diff.value
-                  ? 'border-[#8C52FF] bg-purple-50 text-slate-800'
-                  : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-              }`}
-            >
-              <div className="text-sm font-semibold">{diff.label}</div>
-              <div className="text-xs text-slate-500 mt-1">{diff.description}</div>
-            </button>
-          ))}
+        <div className="flex-1">
+          <CustomSelect
+            label="Формат"
+            value={watchFormat}
+            onChange={(val) => {
+              form.setValue('format', val as typeof watchFormat)
+              form.setValue('variantIndex', 0)
+            }}
+            options={FORMATS.map(f => ({ label: f.name, value: f.id }))}
+          />
         </div>
       </div>
 
-      {/* Task types selection */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-        <h3 className="text-lg font-semibold text-slate-800 text-left mb-5">Типы заданий</h3>
-        <div className="flex gap-3 flex-wrap">
+      {/* Row 2: Task type chips */}
+      <div>
+        <p className="text-sm font-medium text-[#475569] text-left mb-2.5">Типы заданий</p>
+        <div className="flex gap-2 flex-wrap">
           {TASK_TYPES.map(type => {
             const isSelected = watchTaskTypes.includes(type.id)
             const formatAllowsType =
@@ -198,10 +86,10 @@ export default function WorksheetGenerateForm({
                 key={type.id}
                 type="button"
                 onClick={() => onToggleTaskType(type.id)}
-                className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                   isSelected
-                    ? 'border-[#8C52FF] bg-purple-50 text-slate-800'
-                    : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
+                    ? 'bg-[#f3f0ff] text-[#7c3aed] border-[#e8deff]'
+                    : 'bg-white text-[#94a3b8] border-[#e2e8f0] hover:border-[#e8deff] hover:text-[#7c3aed]'
                 }`}
               >
                 {type.name}
@@ -214,12 +102,35 @@ export default function WorksheetGenerateForm({
         )}
       </div>
 
-      {/* Error message */}
-      {errorText && (
-        <GenerationErrorMessage
-          errorText={errorText}
-          errorCode={errorCode}
-          onOpenBuyModal={onOpenBuyModal}
+      {/* Row 3: Preferences */}
+      <div>
+        <label className="block text-sm font-medium text-[#475569] text-left mb-2">
+          Пожелания <span className="text-[#94a3b8] font-normal">(необязательно)</span>
+        </label>
+        <input
+          type="text"
+          {...form.register('preferences')}
+          placeholder="Например: больше задач на логику"
+          className="w-full px-4 py-3 rounded-[10px] border border-[#e2e8f0] text-sm text-[#1e293b] placeholder:text-[#94a3b8] outline-none focus:border-[#e8deff] focus:ring-2 focus:ring-[#8C52FF]/10 transition-all"
+        />
+      </div>
+
+      {/* Row 4: Folder selector */}
+      {user && folders.length > 0 && (
+        <Controller
+          control={form.control}
+          name="folderId"
+          render={({ field }) => (
+            <CustomSelect
+              label="Сохранить в папку"
+              value={field.value ?? ''}
+              onChange={(val) => field.onChange(val === '' ? null : val)}
+              options={[
+                { label: 'Без папки', value: '' },
+                ...folders.map(f => ({ label: f.name, value: f.id }))
+              ]}
+            />
+          )}
         />
       )}
     </div>

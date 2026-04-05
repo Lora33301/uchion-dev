@@ -1,5 +1,5 @@
 import type { UseFormReturn } from 'react-hook-form'
-import GenerationErrorMessage from './GenerationErrorMessage'
+import CustomSelect from '../ui/CustomSelect'
 import {
   THEME_PRESETS,
   SLIDE_COUNTS,
@@ -8,77 +8,48 @@ import {
 
 interface PresentationGenerateFormProps {
   form: UseFormReturn<GeneratePresentationFormValues>
-  errorText: string | null
-  errorCode: string | null
-  onOpenBuyModal: () => void
 }
 
 export default function PresentationGenerateForm({
   form,
-  errorText,
-  errorCode,
-  onOpenBuyModal,
 }: PresentationGenerateFormProps) {
   const watchThemePreset = form.watch('themePreset')
-  const watchSlideCount = form.watch('slideCount')
+  const watchSlideCount = form.watch('slideCount') ?? 12
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-      {/* Theme selector */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-        <h3 className="text-lg font-semibold text-slate-800 text-left mb-4">Стиль оформления</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {THEME_PRESETS.map(theme => (
-            <button
-              key={theme.value}
-              type="button"
-              onClick={() => form.setValue('themePreset', theme.value)}
-              className={`relative flex items-center gap-4 px-5 py-4 rounded-xl border-2 transition-all text-left ${
-                watchThemePreset === theme.value
-                  ? 'border-[#8C52FF] bg-purple-50'
-                  : 'border-slate-200 hover:border-slate-300 bg-white'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg ${theme.color} flex-shrink-0`} />
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{theme.label}</div>
-                <div className="text-xs text-slate-500">{theme.description}</div>
-              </div>
-            </button>
-          ))}
+    <div className="w-full space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+      {/* Row 1: Two dropdowns */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-[2]">
+          <CustomSelect
+            label="Стиль оформления"
+            value={watchThemePreset}
+            onChange={(val) => form.setValue('themePreset', val as typeof watchThemePreset)}
+            options={THEME_PRESETS.map(t => ({ label: t.label, value: t.value }))}
+          />
+        </div>
+        <div className="flex-1">
+          <CustomSelect
+            label="Кол-во слайдов"
+            value={watchSlideCount}
+            onChange={(val) => form.setValue('slideCount', val as 12 | 18 | 24)}
+            options={SLIDE_COUNTS.map(s => ({ label: s.description, value: s.value }))}
+          />
         </div>
       </div>
 
-      {/* Slide count selector */}
-      <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-        <h3 className="text-lg font-semibold text-slate-800 text-left mb-4">Количество слайдов</h3>
-        <div className="grid grid-cols-3 gap-3">
-          {SLIDE_COUNTS.map(sc => (
-            <button
-              key={sc.value}
-              type="button"
-              onClick={() => form.setValue('slideCount', sc.value)}
-              className={`px-4 py-3 rounded-xl border-2 transition-all text-center ${
-                watchSlideCount === sc.value
-                  ? 'border-[#8C52FF] bg-purple-50'
-                  : 'border-slate-200 hover:border-slate-300 bg-white'
-              }`}
-            >
-              <div className="text-sm font-semibold text-slate-900">{sc.label}</div>
-              <div className="text-xs text-slate-500">{sc.description}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Error message */}
-      {errorText && (
-        <GenerationErrorMessage
-          errorText={errorText}
-          errorCode={errorCode}
-          onOpenBuyModal={onOpenBuyModal}
+      {/* Row 2: Preferences */}
+      <div>
+        <label className="block text-sm font-medium text-[#475569] text-left mb-2">
+          Пожелания <span className="text-[#94a3b8] font-normal">(необязательно)</span>
+        </label>
+        <input
+          type="text"
+          {...form.register('preferences')}
+          placeholder="Например: больше примеров и иллюстраций"
+          className="w-full px-4 py-3 rounded-[10px] border border-[#e2e8f0] text-sm text-[#1e293b] placeholder:text-[#94a3b8] outline-none focus:border-[#e8deff] focus:ring-2 focus:ring-[#8C52FF]/10 transition-all"
         />
-      )}
+      </div>
     </div>
   )
 }

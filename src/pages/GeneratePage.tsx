@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { generateWorksheet } from '../lib/api'
 import { generatePresentation } from '../lib/presentation-api'
@@ -14,6 +13,7 @@ import SubscriptionPlansModal from '../components/SubscriptionPlansModal'
 import { fetchFolders } from '../lib/dashboard-api'
 import type { PresentationStructure, GeneratePayload, GeneratePresentationPayload } from '../../shared/types'
 import { downloadBase64File } from '../lib/download-utils'
+import ComboBox from '../components/ui/ComboBox'
 import {
   FORMATS,
   PRESENTATION_COST,
@@ -28,15 +28,20 @@ import WorksheetGenerateForm from '../components/generation/WorksheetGenerateFor
 import PresentationGenerateForm from '../components/generation/PresentationGenerateForm'
 import PresentationPreview from '../components/generation/PresentationPreview'
 import GenerationLoadingOverlay from '../components/generation/GenerationLoadingOverlay'
+import GenerationErrorMessage from '../components/generation/GenerationErrorMessage'
 import type { GenerateMode } from '../components/generation/types'
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
+function assemblePrompt(subject: string, grade: number, topic: string, preferences?: string): string {
+  return `${subject} ${grade} класс, ${topic}${preferences ? '. ' + preferences : ''}`
+}
+
 function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
   return {
-    prompt: v.prompt,
+    prompt: assemblePrompt(v.subject, v.grade, v.topic, v.preferences),
     folderId: v.folderId,
     taskTypes: v.taskTypes,
     difficulty: v.difficulty,
@@ -46,7 +51,12 @@ function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
 }
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
-  return { prompt: v.prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+  return {
+    prompt: assemblePrompt(v.subject, v.grade, v.topic, v.preferences),
+    themeType: v.themeType,
+    themePreset: v.themePreset,
+    slideCount: v.slideCount,
+  }
 }
 
 function getGreeting(): string {
@@ -58,78 +68,67 @@ function getGreeting(): string {
 }
 
 // =============================================================================
-// Small sub-components
+// Inline sub-components
 // =============================================================================
 
-interface ModeChipProps {
-  active: boolean
-  disabled?: boolean
-  icon: ReactNode
-  label: string
-  onClick?: () => void
-}
+function GradeDropdown({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
 
-function ModeChip({ active, disabled, icon, label, onClick }: ModeChipProps) {
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      title={disabled ? 'Скоро будет доступно' : undefined}
-      className={`
-        flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border
-        ${active
-          ? 'bg-[#8C52FF] text-white border-[#8C52FF] shadow-md shadow-purple-400/25'
-          : disabled
-          ? 'bg-white text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-          : 'bg-white text-slate-600 border-slate-200 hover:border-[#8C52FF]/50 hover:text-slate-800'
-        }
-      `}
-    >
-      {icon}
-      {label}
-    </button>
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full text-left">
+        <span className="block text-[9px] uppercase tracking-wider text-[#a5a0c0] font-medium mb-0.5">Класс</span>
+        <span className="flex items-center gap-1">
+          <span className="text-base font-medium text-[#1e293b]">{value}</span>
+          <svg className={`w-3 h-3 text-[#a5a0c0] flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </button>
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 w-20 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 py-1 max-h-60 overflow-y-auto">
+          {Array.from({ length: 11 }, (_, i) => i + 1).map(g => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => { onChange(g); setIsOpen(false) }}
+              className={`w-full text-center py-2 text-sm transition-colors ${
+                value === g ? 'bg-violet-50 text-[#8C52FF] font-semibold' : 'text-slate-700 hover:bg-violet-50'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
-// =============================================================================
-// Icons (inline SVG)
-// =============================================================================
-
-const ClipboardIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+const SparkleIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 0L9.8 6.2L16 8L9.8 9.8L8 16L6.2 9.8L0 8L6.2 6.2L8 0Z" />
   </svg>
 )
 
-const ScreenIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-  </svg>
-)
-
-const BookIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-  </svg>
-)
-
-const ImageIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-  </svg>
-)
-
-const SettingsIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-)
-
-const SparklesIcon = () => (
-  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+const LightningIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 20 20">
     <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+  </svg>
+)
+
+const SlidersIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
   </svg>
 )
 
@@ -152,7 +151,6 @@ export default function GeneratePage() {
   const [showLowGenWarning, setShowLowGenWarning] = useState(false)
   const greeting = getGreeting()
 
-  // Whether user is logged in but has 0 generations
   const isGenerationsExhausted = !!user && !canGenerate(user)
 
   // Mode: worksheet or presentation
@@ -161,7 +159,6 @@ export default function GeneratePage() {
     searchParams.get('tab') === 'presentation' ? 'presentation' : 'worksheet'
   )
 
-  // Sync mode with URL param when navigating from other pages
   useEffect(() => {
     const tab = searchParams.get('tab')
     setMode(tab === 'presentation' ? 'presentation' : 'worksheet')
@@ -197,14 +194,16 @@ export default function GeneratePage() {
     queryFn: fetchFolders,
     enabled: !!user,
   })
-
   const folders = foldersData?.folders || []
 
-  // Worksheet form — prompt-based
+  // Worksheet form
   const form = useForm<GenerateFormValues>({
     resolver: zodResolver(GenerateFormSchema),
     defaultValues: {
-      prompt: '',
+      subject: '',
+      grade: 5,
+      topic: '',
+      preferences: '',
       folderId: null,
       format: 'test_and_open',
       variantIndex: 0,
@@ -213,28 +212,19 @@ export default function GeneratePage() {
     }
   })
 
-  // Presentation form — prompt-based
+  // Presentation form
   const presentationForm = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      prompt: '',
+      subject: '',
+      grade: 5,
+      topic: '',
+      preferences: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
     }
   })
-
-  // Helpers to interact with the active form's prompt field
-  const activePromptRegister = mode === 'worksheet' ? form.register('prompt') : presentationForm.register('prompt')
-  const setActivePrompt = (value: string) => {
-    if (mode === 'worksheet') {
-      form.setValue('prompt', value)
-      form.clearErrors('prompt')
-    } else {
-      presentationForm.setValue('prompt', value)
-      presentationForm.clearErrors('prompt')
-    }
-  }
 
   const watchFormat = form.watch('format')
   const watchVariantIndex = form.watch('variantIndex')
@@ -242,23 +232,34 @@ export default function GeneratePage() {
 
   const presentationCost = PRESENTATION_COST[watchSlideCount ?? 12] ?? 2
 
-  // Derive currentFormat and currentVariant from watched values
   const derivedFormat = FORMATS.find(f => f.id === watchFormat)
   const derivedVariant = derivedFormat?.variants[watchVariantIndex]
   const generationCost = derivedVariant?.generations || 1
+
+  // Shared field helper for example cards
+  const setSharedFields = (subject: string, grade: number, topic: string) => {
+    if (mode === 'worksheet') {
+      form.setValue('subject', subject); form.clearErrors('subject')
+      form.setValue('grade', grade)
+      form.setValue('topic', topic); form.clearErrors('topic')
+    } else {
+      presentationForm.setValue('subject', subject); presentationForm.clearErrors('subject')
+      presentationForm.setValue('grade', grade)
+      presentationForm.setValue('topic', topic); presentationForm.clearErrors('topic')
+    }
+  }
 
   // Toggle task type selection (at least one must remain selected)
   const toggleTaskType = (typeId: TaskTypeId) => {
     const current = form.getValues('taskTypes')
     if (current.includes(typeId)) {
-      if (current.length > 1) {
-        form.setValue('taskTypes', current.filter(t => t !== typeId))
-      }
+      if (current.length > 1) form.setValue('taskTypes', current.filter(t => t !== typeId))
     } else {
       form.setValue('taskTypes', [...current, typeId])
     }
   }
 
+  // Worksheet mutation
   const mutation = useMutation({
     mutationFn: (values: GenerateFormValues) => generateWorksheet(formValuesToPayload(values), (p) => setProgress(p)),
     onSuccess: res => {
@@ -270,14 +271,7 @@ export default function GeneratePage() {
       const sessionId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now())
       const worksheet = res.data.worksheet
 
-      // Save to localStorage for persistence
-      try {
-        localStorage.setItem('uchion_cached_worksheet', JSON.stringify(worksheet))
-      } catch (e) {
-        void e
-      }
-
-      // Refresh user data to get updated generationsLeft from server
+      try { localStorage.setItem('uchion_cached_worksheet', JSON.stringify(worksheet)) } catch { /* noop */ }
       refreshAuth()
 
       saveSession(sessionId, {
@@ -288,13 +282,10 @@ export default function GeneratePage() {
           difficulty: form.getValues('difficulty'),
         },
         worksheet,
-        pdfBase64: worksheet.pdfBase64
+        pdfBase64: worksheet.pdfBase64,
       })
       setCurrent(sessionId)
-
-      // Invalidate worksheets queries to trigger refetch in Dashboard
       queryClient.invalidateQueries({ queryKey: ['worksheets'] })
-
       navigate('/worksheet/' + sessionId)
     },
     onError: () => {
@@ -324,8 +315,11 @@ export default function GeneratePage() {
   // Presentation download handlers
   const handleDownloadPptx = () => {
     if (!generatedPresentation) return
-    const filename = `${generatedPresentation.title.replace(/[^a-zа-яё0-9\s]/gi, '_')}.pptx`
-    downloadBase64File(generatedPresentation.pptxBase64, filename, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+    downloadBase64File(
+      generatedPresentation.pptxBase64,
+      `${generatedPresentation.title.replace(/[^a-zа-яё0-9\s]/gi, '_')}.pptx`,
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    )
   }
 
   const handleCreateNewPresentation = () => {
@@ -334,10 +328,8 @@ export default function GeneratePage() {
     setErrorCode(null)
     setProgress(0)
     presentationForm.reset({
-      prompt: '',
-      themeType: 'preset',
-      themePreset: 'professional',
-      slideCount: 12,
+      subject: '', grade: 5, topic: '', preferences: '',
+      themeType: 'preset', themePreset: 'professional', slideCount: 12,
     })
   }
 
@@ -353,9 +345,8 @@ export default function GeneratePage() {
 
     try {
       const savedValues = JSON.parse(pending) as GenerateFormValues
-      // Restore form values
+      if (!('subject' in savedValues)) return // ignore old format gracefully
       form.reset(savedValues)
-      // Trigger generation after a short delay to let form settle
       setTimeout(() => {
         form.handleSubmit((values) => {
           setErrorText(null)
@@ -370,20 +361,17 @@ export default function GeneratePage() {
     }
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Submit handlers
   const onSubmit = (values: GenerateFormValues) => {
-    // Require authentication -- save form and redirect to login
     if (!user) {
       sessionStorage.setItem('uchion_pending_generate', JSON.stringify(values))
       navigate('/login')
       return
     }
-
-    // Check limits - open buy modal instead of showing error
     if (!canGenerate(user) || generationsLeft < generationCost) {
       setShowBuyModal(true)
       return
     }
-
     setErrorText(null)
     setErrorCode(null)
     setProgress(0)
@@ -392,35 +380,27 @@ export default function GeneratePage() {
   }
 
   const onPresentationSubmit = (values: GeneratePresentationFormValues) => {
-    // Require authentication -- save form and redirect to login
     if (!user) {
       sessionStorage.setItem('uchion_pending_generate_presentation', JSON.stringify(values))
       navigate('/login')
       return
     }
-
-    // Check plan allows presentations
     if (!canGeneratePresentation(user)) {
       setErrorText('Презентации недоступны на вашем тарифе.')
       setErrorCode('PLAN_LIMIT')
       setShowBuyModal(true)
       return
     }
-
-    // Check slide count allowed
     if (!isSlideCountAllowed(user, values.slideCount || 12)) {
       setErrorText(`Объём ${values.slideCount || 12} слайдов недоступен на вашем тарифе.`)
       setErrorCode('PLAN_LIMIT')
       setShowBuyModal(true)
       return
     }
-
-    // Check generation limits
     if (!canGenerate(user) || generationsLeft < presentationCost) {
       setShowBuyModal(true)
       return
     }
-
     setErrorText(null)
     setErrorCode(null)
     setProgress(0)
@@ -428,93 +408,42 @@ export default function GeneratePage() {
     presentationMutation.mutate(values)
   }
 
-  // Handle unified prompt submit
   const handlePromptSubmit = () => {
-    if (mode === 'worksheet') {
-      form.handleSubmit(onSubmit)()
-    } else {
-      presentationForm.handleSubmit(onPresentationSubmit)()
-    }
+    if (mode === 'worksheet') form.handleSubmit(onSubmit)()
+    else presentationForm.handleSubmit(onPresentationSubmit)()
   }
 
   const isLoading = mutation.isPending || presentationMutation.isPending
-
-  // Prompt field error (from active form)
-  const promptError = mode === 'worksheet'
-    ? form.formState.errors.prompt?.message
-    : presentationForm.formState.errors.prompt?.message
-
-  // Current cost badge value
   const currentCost = mode === 'worksheet' ? generationCost : presentationCost
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-purple-50 to-white font-sans text-slate-900 relative overflow-hidden">
-      {/* Decorative background element */}
-      <div className="absolute top-[-20%] left-[50%] w-[1000px] h-[1000px] -translate-x-1/2 rounded-full bg-gradient-to-b from-purple-100/40 to-transparent blur-3xl pointer-events-none" />
+  // Validation errors for shared fields
+  const subjectError = mode === 'worksheet'
+    ? form.formState.errors.subject?.message
+    : presentationForm.formState.errors.subject?.message
+  const topicError = mode === 'worksheet'
+    ? form.formState.errors.topic?.message
+    : presentationForm.formState.errors.topic?.message
 
+  const topicRegister = mode === 'worksheet' ? form.register('topic') : presentationForm.register('topic')
+
+  return (
+    <div className="min-h-screen bg-white font-sans text-slate-900">
       <Header />
 
-      <main className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-4 py-12 text-center">
-        {/* Greeting header */}
+      <main className="mx-auto flex max-w-3xl flex-col items-center px-4 py-12 text-center">
+        {/* Greeting */}
         <div className="w-full mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             {greeting}{user?.name ? `, ${user.name}` : ''}!
           </h1>
-          <p className="text-lg text-slate-500">Опишите, что хотите создать</p>
+          <p className="text-lg text-slate-500">Какой материал хотите создать?</p>
         </div>
 
-        {/* Unified prompt input */}
-        <div className="w-full mb-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder={
-                mode === 'worksheet'
-                  ? 'Задания по математике, 5 класс, тема дроби...'
-                  : 'Презентация по геометрии, 8 класс, теорема Пифагора...'
-              }
-              className={`h-14 w-full rounded-full border bg-white px-6 pr-36 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-all shadow-sm
-                ${promptError
-                  ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-400/10'
-                  : 'border-slate-200 focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10'
-                }
-              `}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePromptSubmit() } }}
-              {...activePromptRegister}
-            />
+        {/* Mode selector + generations counter */}
+        <div className="w-full flex items-center justify-between gap-3 flex-wrap mb-6">
+          <div className="flex bg-[#f8f5ff] rounded-[10px] p-0.5">
             <button
               type="button"
-              disabled={isLoading}
-              onClick={isGenerationsExhausted ? () => setShowBuyModal(true) : handlePromptSubmit}
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-5 py-2 rounded-full bg-[#8C52FF] hover:bg-[#7B3FEE] text-white text-sm font-semibold transition-all shadow-md shadow-purple-400/30 disabled:opacity-60"
-            >
-              {isLoading ? (
-                <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <SparklesIcon />
-              )}
-              <span className="hidden sm:inline">Создать</span>
-              <span className="flex items-center gap-1 bg-white/20 rounded-full px-2 py-0.5 text-xs">
-                <SparklesIcon />
-                {currentCost}
-              </span>
-            </button>
-          </div>
-          {promptError && (
-            <p className="text-sm text-red-500 text-left mt-1.5 ml-4">{promptError}</p>
-          )}
-        </div>
-
-        {/* Material type chips + generations counter row */}
-        <div className="w-full flex items-center justify-between gap-2 flex-wrap mb-6">
-          <div className="flex flex-wrap gap-2">
-            <ModeChip
-              active={mode === 'worksheet'}
-              icon={<ClipboardIcon />}
-              label="Задания"
               onClick={() => {
                 setMode('worksheet')
                 setGeneratedPresentation(null)
@@ -522,47 +451,45 @@ export default function GeneratePage() {
                 setErrorCode(null)
                 setShowAdvanced(false)
               }}
-            />
-            <ModeChip
-              active={mode === 'presentation'}
-              icon={<ScreenIcon />}
-              label="Презентация"
+              className={`px-5 py-2 rounded-[8px] text-sm font-medium transition-all ${
+                mode === 'worksheet'
+                  ? 'bg-[#8C52FF] text-white shadow-sm'
+                  : 'text-[#8C52FF] hover:text-[#7B3FEE]'
+              }`}
+            >
+              Задания
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setMode('presentation')
                 setErrorText(null)
                 setErrorCode(null)
                 setShowAdvanced(false)
               }}
-            />
-            <ModeChip
-              active={false}
-              disabled
-              icon={<BookIcon />}
-              label="План урока"
-            />
-            <ModeChip
-              active={false}
-              disabled
-              icon={<ImageIcon />}
-              label="Картинка"
-            />
+              className={`px-5 py-2 rounded-[8px] text-sm font-medium transition-all ${
+                mode === 'presentation'
+                  ? 'bg-[#8C52FF] text-white shadow-sm'
+                  : 'text-[#8C52FF] hover:text-[#7B3FEE]'
+              }`}
+            >
+              Презентация
+            </button>
           </div>
 
           {/* Generations counter */}
           {user && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-3 py-2 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
-                <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
-                </svg>
-                <span className="text-sm font-semibold text-slate-700">
+              <div className="flex items-center gap-1.5 bg-[#f8f5ff] rounded-[8px] px-3 py-2 border border-[#ede9fe]">
+                <LightningIcon className="w-4 h-4 text-[#7c3aed]" />
+                <span className="text-sm font-semibold text-[#7c3aed]">
                   <span className="hidden sm:inline">Генераций: </span>{generationsLeft}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowBuyModal(true)}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-50/80 backdrop-blur-sm text-[#8C52FF] hover:bg-purple-100 transition-all hover:scale-105 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]"
+                className="flex items-center justify-center w-8 h-8 rounded-[8px] bg-[#f8f5ff] text-[#7c3aed] hover:bg-[#ede9fe] transition-all border border-[#ede9fe]"
                 title="Пополнить генерации"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -573,15 +500,108 @@ export default function GeneratePage() {
           )}
         </div>
 
-        {/* Collapsible params toggle */}
-        <div className="w-full mb-4">
+        {/* Input bar */}
+        <div className={`w-full rounded-[14px] border-[1.5px] bg-white mb-4 ${
+          subjectError || topicError ? 'border-red-300' : 'border-[#e8deff]'
+        }`}>
+          {/* Top row: Subject + Grade */}
+          <div className="flex border-b border-[#e8deff]">
+            <div className="flex-[2] min-w-0 px-4 py-3">
+              <Controller
+                control={mode === 'worksheet' ? form.control : presentationForm.control}
+                name="subject"
+                render={({ field }) => (
+                  <ComboBox
+                    value={field.value}
+                    onChange={(val) => {
+                      field.onChange(val)
+                      if (mode === 'worksheet') form.clearErrors('subject')
+                      else presentationForm.clearErrors('subject')
+                    }}
+                    error={!!subjectError}
+                  />
+                )}
+              />
+            </div>
+            <div className="w-px bg-[#e8deff] my-2" />
+            <div className="w-[90px] px-3 py-3">
+              <Controller
+                control={mode === 'worksheet' ? form.control : presentationForm.control}
+                name="grade"
+                render={({ field }) => (
+                  <GradeDropdown value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Bottom row: Topic + Submit */}
+          <div className="flex items-center gap-2 px-4 py-2">
+            <input
+              type="text"
+              placeholder="Тема: Сложение двузначных чисел"
+              className="flex-1 min-w-0 py-2 text-base text-[#1e293b] placeholder:text-[#94a3b8] outline-none bg-transparent"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePromptSubmit() } }}
+              {...topicRegister}
+            />
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={isGenerationsExhausted ? () => setShowBuyModal(true) : handlePromptSubmit}
+              className="flex items-center gap-2 px-4 py-2 rounded-[10px] bg-[#8C52FF] hover:bg-[#7B3FEE] text-white text-sm font-semibold transition-all shadow-md shadow-purple-400/30 disabled:opacity-60 flex-shrink-0"
+            >
+              {isLoading ? (
+                <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <SparkleIcon />
+              )}
+              <span className="hidden sm:inline">Создать</span>
+              <span className="flex items-center gap-1 bg-white/20 rounded-full px-2 py-0.5 text-xs">
+                <LightningIcon className="w-3 h-3" />
+                {currentCost}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Validation errors */}
+        {(subjectError || topicError) && (
+          <div className="w-full text-left mb-2">
+            {subjectError && <p className="text-sm text-red-500 ml-1">{subjectError}</p>}
+            {topicError && <p className="text-sm text-red-500 ml-1">{topicError}</p>}
+          </div>
+        )}
+
+        {/* API error */}
+        {errorText && (
+          <div className="w-full mb-4">
+            <GenerationErrorMessage
+              errorText={errorText}
+              errorCode={errorCode}
+              onOpenBuyModal={() => setShowBuyModal(true)}
+            />
+          </div>
+        )}
+
+        {/* Advanced toggle pill */}
+        <div className="w-full flex justify-center mb-5">
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+            className={`flex items-center gap-2 px-[18px] py-[7px] rounded-full text-sm font-medium transition-all border-[1.5px] ${
+              showAdvanced
+                ? 'border-[#8C52FF] bg-[#f8f5ff] text-[#8C52FF]'
+                : 'border-[#8C52FF] text-[#8C52FF] hover:bg-[#f8f5ff]'
+            }`}
           >
-            <SettingsIcon />
-            {mode === 'worksheet' ? 'Параметры задания' : 'Параметры презентации'}
+            <SlidersIcon />
+            <span className="hidden sm:inline">
+              {mode === 'worksheet' ? 'Параметры задания' : 'Параметры презентации'}
+            </span>
+            <span className="sm:hidden">Параметры</span>
             <svg
               className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
               fill="none"
@@ -593,79 +613,60 @@ export default function GeneratePage() {
           </button>
         </div>
 
-        {/* Worksheet params */}
-        {mode === 'worksheet' && (
+        {/* Advanced settings panels */}
+        {showAdvanced && mode === 'worksheet' && (
           <WorksheetGenerateForm
             form={form}
-            currentFormat={derivedFormat}
             currentVariant={derivedVariant}
-            generationCost={generationCost}
-            showAdvanced={showAdvanced}
-            errorText={errorText}
-            errorCode={errorCode}
             onToggleTaskType={toggleTaskType}
-            onOpenBuyModal={() => setShowBuyModal(true)}
             user={user}
             folders={folders}
           />
         )}
 
-        {/* Presentation params + result */}
-        {mode === 'presentation' && (
-          <>
-            {/* Success state - preview + download */}
-            {generatedPresentation && (
-              <PresentationPreview
-                presentation={generatedPresentation}
-                themePreset={presentationForm.getValues('themePreset')}
-                onDownloadPptx={handleDownloadPptx}
-                onCreateNew={handleCreateNewPresentation}
-              />
-            )}
+        {showAdvanced && mode === 'presentation' && !generatedPresentation && (
+          <PresentationGenerateForm form={presentationForm} />
+        )}
 
-            {/* Params - hidden when result is shown */}
-            {!generatedPresentation && (
-              <PresentationGenerateForm
-                form={presentationForm}
-                errorText={errorText}
-                errorCode={errorCode}
-                onOpenBuyModal={() => setShowBuyModal(true)}
-              />
-            )}
-          </>
+        {/* Presentation result */}
+        {mode === 'presentation' && generatedPresentation && (
+          <PresentationPreview
+            presentation={generatedPresentation}
+            themePreset={presentationForm.getValues('themePreset')}
+            onDownloadPptx={handleDownloadPptx}
+            onCreateNew={handleCreateNewPresentation}
+          />
         )}
 
         {/* Example cards */}
         {!generatedPresentation && (
           <div className="w-full mt-10">
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3 text-left">Примеры запросов</p>
-            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            <p className="text-xs font-medium text-[#94a3b8] uppercase tracking-wide mb-3 text-left">
+              Примеры запросов
+            </p>
+            <div className="flex gap-3 flex-col sm:flex-row">
               {EXAMPLE_PROMPTS.map(ex => (
                 <button
-                  key={ex.prompt}
+                  key={`${ex.subject}-${ex.grade}`}
                   type="button"
-                  onClick={() => setActivePrompt(ex.prompt)}
-                  className="flex-1 min-w-0 text-left bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-[#8C52FF]/50 hover:shadow-sm transition-all group"
+                  onClick={() => setSharedFields(ex.subject, ex.grade, ex.topic)}
+                  className="flex-1 min-w-0 text-left border border-[#f1f0f9] rounded-[10px] px-3 py-2.5 hover:border-[#8C52FF]/50 hover:shadow-sm transition-all group"
                 >
-                  <div className="text-xs font-semibold text-slate-500 mb-1 group-hover:text-[#8C52FF] transition-colors">
-                    {ex.subject}, {ex.grade}
+                  <div className="text-[10px] font-medium text-[#a5a0c0] mb-0.5 group-hover:text-[#8C52FF] transition-colors">
+                    {ex.subject}, {ex.grade} класс
                   </div>
-                  <div className="text-sm font-medium text-slate-800 truncate">{ex.topic}</div>
+                  <div className="text-xs font-medium text-[#475569] truncate">{ex.topic}</div>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        <p className="mt-8 text-sm text-slate-400">
-          Проверяйте материалы перед печатью
-        </p>
+        <p className="mt-8 text-sm text-slate-400">Проверяйте материалы перед печатью</p>
       </main>
 
       {/* Loading Overlay */}
-      {isLoading && (
-        <GenerationLoadingOverlay mode={mode} progress={progress} />
-      )}
+      {isLoading && <GenerationLoadingOverlay mode={mode} progress={progress} />}
 
       {/* Low generations warning modal */}
       {showLowGenWarning && (
@@ -678,9 +679,7 @@ export default function GeneratePage() {
                   <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                Генерации заканчиваются!
-              </h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Генерации заканчиваются!</h3>
               <p className="text-sm text-slate-500 mb-6">
                 У вас {generationsLeft === 1 ? 'осталась' : 'осталось'}{' '}
                 <span className="font-bold text-amber-600">{generationsLeft}</span>{' '}

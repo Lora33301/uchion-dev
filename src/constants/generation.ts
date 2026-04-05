@@ -20,11 +20,20 @@ export interface FormatVariant {
 // Constants
 // =============================================================================
 
+/** Backend-supported subjects (used for subject->backend mapping) */
 export const SUBJECTS: { value: Subject; label: string; grades: number[] }[] = [
   { value: 'russian', label: 'Русский язык', grades: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
   { value: 'algebra', label: 'Алгебра', grades: [7, 8, 9, 10, 11] },
   { value: 'geometry', label: 'Геометрия', grades: [7, 8, 9, 10, 11] },
   { value: 'math', label: 'Математика', grades: [1, 2, 3, 4, 5, 6] },
+]
+
+/** Extended subject list for the combo-box */
+export const COMBO_SUBJECTS = [
+  'Математика', 'Алгебра', 'Геометрия', 'Русский язык',
+  'Физика', 'Химия', 'Биология', 'История',
+  'Обществознание', 'Английский язык', 'Литература',
+  'География', 'Информатика', 'Окружающий мир',
 ]
 
 export const DIFFICULTIES: { value: DifficultyLevel; label: string; description: string }[] = [
@@ -63,6 +72,16 @@ export const FORMATS: { id: WorksheetFormatId; name: string; variants: FormatVar
   },
 ]
 
+/** Get task count dropdown options for a given format */
+export function getTaskCountOptions(format: WorksheetFormatId) {
+  const fmt = FORMATS.find(f => f.id === format)
+  if (!fmt) return []
+  return fmt.variants.map((v, idx) => ({
+    label: `${v.openTasks + v.testQuestions} заданий`,
+    value: idx,
+  }))
+}
+
 export const TASK_TYPES: { id: TaskTypeId; name: string; description: string; category: 'test' | 'open' }[] = [
   { id: 'single_choice', name: 'Единственный выбор', description: 'Один правильный ответ', category: 'test' },
   { id: 'multiple_choice', name: 'Множественный выбор', description: 'Несколько правильных', category: 'test' },
@@ -90,7 +109,10 @@ export const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
 // =============================================================================
 
 export const GenerateFormSchema = z.object({
-  prompt: z.string().min(3, 'Минимум 3 символа').max(500, 'Максимум 500 символов'),
+  subject: z.string().min(1, 'Выберите предмет'),
+  grade: z.number().int().min(1, 'Выберите класс').max(11),
+  topic: z.string().min(2, 'Введите тему').max(200, 'Максимум 200 символов'),
+  preferences: z.string().max(500).optional(),
   folderId: z.string().uuid().nullable().optional(),
   format: z.enum(['open_only', 'test_only', 'test_and_open']),
   variantIndex: z.number().int().min(0).max(2),
@@ -101,7 +123,10 @@ export const GenerateFormSchema = z.object({
 export type GenerateFormValues = z.infer<typeof GenerateFormSchema>
 
 export const GeneratePresentationFormSchema = z.object({
-  prompt: z.string().min(3, 'Минимум 3 символа').max(500, 'Максимум 500 символов'),
+  subject: z.string().min(1, 'Выберите предмет'),
+  grade: z.number().int().min(1, 'Выберите класс').max(11),
+  topic: z.string().min(2, 'Введите тему').max(200, 'Максимум 200 символов'),
+  preferences: z.string().max(500).optional(),
   themeType: z.literal('preset'),
   themePreset: z.enum(['professional', 'kids', 'school']),
   slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
@@ -109,8 +134,8 @@ export const GeneratePresentationFormSchema = z.object({
 
 export type GeneratePresentationFormValues = z.infer<typeof GeneratePresentationFormSchema>
 
-export const EXAMPLE_PROMPTS: { subject: string; grade: string; topic: string; prompt: string }[] = [
-  { subject: 'Русский язык', grade: '3 класс', topic: 'имя существительное', prompt: 'Русский язык 3 класс, имя существительное' },
-  { subject: 'Геометрия', grade: '8 класс', topic: 'теорема Пифагора', prompt: 'Геометрия 8 класс, теорема Пифагора' },
-  { subject: 'Английский', grade: '5 класс', topic: 'Present Simple', prompt: 'Английский 5 класс, Present Simple' },
+export const EXAMPLE_PROMPTS: { subject: string; grade: number; topic: string }[] = [
+  { subject: 'Русский язык', grade: 3, topic: 'Имя существительное' },
+  { subject: 'Геометрия', grade: 8, topic: 'Теорема Пифагора' },
+  { subject: 'Английский язык', grade: 5, topic: 'Present Simple' },
 ]

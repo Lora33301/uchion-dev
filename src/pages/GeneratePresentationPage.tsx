@@ -21,7 +21,8 @@ import {
 // =============================================================================
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
-  return { prompt: v.prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+  const prompt = `${v.subject} ${v.grade} класс, ${v.topic}${v.preferences ? '. ' + v.preferences : ''}`
+  return { prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
 }
 
 // Get greeting based on time of day
@@ -70,7 +71,10 @@ export default function GeneratePresentationPage() {
   const form = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      prompt: '',
+      subject: '',
+      grade: 5,
+      topic: '',
+      preferences: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
@@ -117,7 +121,7 @@ export default function GeneratePresentationPage() {
 
     try {
       const savedValues = JSON.parse(pending) as GeneratePresentationFormValues
-      // Restore form values
+      if (!('subject' in savedValues)) return // ignore old format
       form.reset(savedValues)
       // Trigger generation after a short delay to let form settle
       setTimeout(() => {
@@ -181,10 +185,8 @@ export default function GeneratePresentationPage() {
     setErrorCode(null)
     setProgress(0)
     form.reset({
-      prompt: '',
-      themeType: 'preset',
-      themePreset: 'professional',
-      slideCount: 12,
+      subject: '', grade: 5, topic: '', preferences: '',
+      themeType: 'preset', themePreset: 'professional', slideCount: 12,
     })
   }
 
@@ -273,17 +275,44 @@ export default function GeneratePresentationPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
             {/* Main compact card */}
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-              {/* Prompt input */}
+              {/* Subject + Grade */}
+              <div className="mb-6 flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Предмет</label>
+                  <input
+                    type="text"
+                    className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10"
+                    placeholder="Геометрия"
+                    {...form.register('subject')}
+                  />
+                  {form.formState.errors.subject && (
+                    <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.subject.message}</p>
+                  )}
+                </div>
+                <div className="w-24">
+                  <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Класс</label>
+                  <select
+                    className="h-14 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 outline-none transition-all focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10"
+                    {...form.register('grade', { valueAsNumber: true })}
+                  >
+                    {Array.from({ length: 11 }, (_, i) => i + 1).map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Topic */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Опишите презентацию</label>
+                <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Тема</label>
                 <input
                   type="text"
-                  className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-lg text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10"
-                  placeholder="Геометрия, 8 класс, теорема Пифагора..."
-                  {...form.register('prompt')}
+                  className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10"
+                  placeholder="Теорема Пифагора"
+                  {...form.register('topic')}
                 />
-                {form.formState.errors.prompt && (
-                  <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.prompt.message}</p>
+                {form.formState.errors.topic && (
+                  <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.topic.message}</p>
                 )}
               </div>
 
