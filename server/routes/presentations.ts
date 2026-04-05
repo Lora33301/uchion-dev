@@ -17,6 +17,7 @@ import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter
 import { isQueueAvailable, getPresentationQueue, getPresentationEvents, type PresentationJobData } from '../lib/job-queue.js'
 import { bridgeJobToSSE } from '../lib/sse-bridge.js'
 import type { PresentationStructure } from '../../shared/types.js'
+import { parsePrompt } from '../../api/_lib/generation/parse-prompt.js'
 
 const router = Router()
 
@@ -27,13 +28,17 @@ type SSEEvent =
   | { type: 'error'; code: string; message: string }
 
 const InputSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
-  grade: z.number().int().min(1).max(11),
-  topic: z.string().min(3).max(200),
+  prompt: z.string().min(3).max(500).optional(),
+  subject: z.string().min(1).max(100).optional(),
+  grade: z.number().int().min(1).max(11).optional(),
+  topic: z.string().min(3).max(200).optional(),
   themeType: z.literal('preset'),
   themePreset: z.enum(['professional', 'kids', 'school']).optional(),
   slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
-})
+}).refine(
+  (data) => data.prompt || (data.subject && data.grade != null && data.topic),
+  { message: 'Введите запрос или укажите предмет, класс и тему', path: ['prompt'] }
+)
 
 // ==================== POST /api/presentations/generate ====================
 router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Response) => {
@@ -47,7 +52,39 @@ router.post('/generate', withAuth(async (req: AuthenticatedRequest, res: Respons
     })
   }
 
-  const input = parse.data
+  const rawInput = parse.data
+
+  // 1b. If prompt is provided, parse it to extract subject/grade/topic
+  let resolvedSubject: string
+  let resolvedGrade: number
+  let resolvedTopic: string
+
+  if (rawInput.prompt) {
+    try {
+      const parsed = await parsePrompt(rawInput.prompt)
+      resolvedSubject = rawInput.subject || parsed.subject
+      resolvedGrade = rawInput.grade ?? parsed.grade
+      resolvedTopic = rawInput.topic || parsed.topic
+    } catch (parseErr) {
+      console.error('[API] Prompt parse error:', parseErr)
+      return res.status(400).json({
+        status: 'error',
+        code: 'VALIDATION_ERROR',
+        message: 'Не удалось распознать запрос. Попробуйте указать предмет, класс и тему.',
+      })
+    }
+  } else {
+    resolvedSubject = rawInput.subject!
+    resolvedGrade = rawInput.grade!
+    resolvedTopic = rawInput.topic!
+  }
+
+  const input = {
+    ...rawInput,
+    subject: resolvedSubject,
+    grade: resolvedGrade,
+    topic: resolvedTopic,
+  }
 
   // 2. Check themePreset is provided
   if (!input.themePreset) {

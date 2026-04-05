@@ -90,11 +90,7 @@ export const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
 // =============================================================================
 
 export const GenerateFormSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian'], {
-    errorMap: () => ({ message: 'Выберите предмет' }),
-  }),
-  grade: z.number({ message: 'Выберите класс' }).int().min(1, 'Выберите класс').max(11),
-  topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
+  prompt: z.string().min(3, 'Минимум 3 символа').max(500, 'Максимум 500 символов'),
   folderId: z.string().uuid().nullable().optional(),
   format: z.enum(['open_only', 'test_only', 'test_and_open']),
   variantIndex: z.number().int().min(0).max(2),
@@ -105,14 +101,16 @@ export const GenerateFormSchema = z.object({
 export type GenerateFormValues = z.infer<typeof GenerateFormSchema>
 
 export const GeneratePresentationFormSchema = z.object({
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian'], {
-    errorMap: () => ({ message: 'Выберите предмет' }),
-  }),
-  grade: z.number({ message: 'Выберите класс' }).int().min(1, 'Выберите класс').max(11),
-  topic: z.string().min(3, 'Минимум 3 символа').max(200, 'Максимум 200 символов'),
+  prompt: z.string().min(3, 'Минимум 3 символа').max(500, 'Максимум 500 символов'),
   themeType: z.literal('preset'),
   themePreset: z.enum(['professional', 'kids', 'school']),
   slideCount: z.union([z.literal(12), z.literal(18), z.literal(24)]).optional(),
 })
 
 export type GeneratePresentationFormValues = z.infer<typeof GeneratePresentationFormSchema>
+
+export const EXAMPLE_PROMPTS: { subject: string; grade: string; topic: string; prompt: string }[] = [
+  { subject: 'Русский язык', grade: '3 класс', topic: 'имя существительное', prompt: 'Русский язык 3 класс, имя существительное' },
+  { subject: 'Геометрия', grade: '8 класс', topic: 'теорема Пифагора', prompt: 'Геометрия 8 класс, теорема Пифагора' },
+  { subject: 'Английский', grade: '5 класс', topic: 'Present Simple', prompt: 'Английский 5 класс, Present Simple' },
+]

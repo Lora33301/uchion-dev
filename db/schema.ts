@@ -233,7 +233,7 @@ export const presentations = pgTable('presentations', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }), // Optional folder
   title: varchar('title', { length: 300 }).notNull(),
-  subject: subjectEnum('subject').notNull(),
+  subject: varchar('subject', { length: 100 }).notNull(),
   grade: integer('grade').notNull(),
   topic: varchar('topic', { length: 500 }).notNull(),
   themeType: presentationThemeTypeEnum('theme_type').notNull(),

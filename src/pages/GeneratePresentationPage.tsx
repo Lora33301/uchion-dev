@@ -1,10 +1,9 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { generatePresentation } from '../lib/presentation-api'
-import CustomSelect from '../components/ui/CustomSelect'
 import { useAuth } from '../lib/auth'
 import { getGenerationsLeft, canGenerate, canGeneratePresentation, isSlideCountAllowed } from '../lib/limits'
 import Header from '../components/Header'
@@ -12,43 +11,17 @@ import type { PresentationStructure, GeneratePresentationPayload } from '../../s
 import SlidePreview from '../components/presentations/SlidePreview'
 import {
   GeneratePresentationFormSchema,
+  SLIDE_COUNTS,
+  THEME_PRESETS,
   type GeneratePresentationFormValues,
 } from '../constants/generation'
-
-// =============================================================================
-// Types and Constants
-// =============================================================================
-
-type Subject = 'math' | 'algebra' | 'geometry' | 'russian'
-
-const SUBJECTS: { value: Subject; label: string; grades: number[] }[] = [
-  { value: 'math', label: 'Математика', grades: [1, 2, 3, 4, 5, 6] },
-  { value: 'algebra', label: 'Алгебра', grades: [7, 8, 9, 10, 11] },
-  { value: 'geometry', label: 'Геометрия', grades: [7, 8, 9, 10, 11] },
-  { value: 'russian', label: 'Русский язык', grades: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
-]
-
-const SLIDE_COUNTS: { value: 12 | 18 | 24; label: string; description: string }[] = [
-  { value: 12, label: 'Короткая', description: '12 слайдов' },
-  { value: 18, label: 'Средняя', description: '18 слайдов' },
-  { value: 24, label: 'Детальная', description: '24 слайда' },
-]
-
-type ActiveThemePreset = 'professional' | 'kids' | 'school'
-
-const THEME_PRESETS: { value: ActiveThemePreset; label: string; description: string; color: string }[] = [
-  { value: 'professional', label: 'Профессиональный', description: 'Строгий, деловой', color: 'bg-blue-900' },
-  { value: 'kids', label: 'Для детей', description: 'Яркий, начальная школа', color: 'bg-[#4ECDC4]' },
-  { value: 'school', label: 'Школьный', description: 'Классический, уютный', color: 'bg-[#8B9DAE]' },
-]
-
 
 // =============================================================================
 // Component
 // =============================================================================
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
-  return { subject: v.subject, grade: v.grade, topic: v.topic, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+  return { prompt: v.prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
 }
 
 // Get greeting based on time of day
@@ -84,7 +57,6 @@ export default function GeneratePresentationPage() {
   const presentationAllowed = !user || canGeneratePresentation(user)
   const greeting = getGreeting()
 
-
   // Result state
   const [generatedResult, setGeneratedResult] = useState<{
     id: string
@@ -98,38 +70,19 @@ export default function GeneratePresentationPage() {
   const form = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      subject: 'math',
-      grade: 3,
-      topic: '',
+      prompt: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
     }
   })
 
-  const watchSubject = form.watch('subject')
   const watchThemePreset = form.watch('themePreset')
   const watchSlideCount = form.watch('slideCount')
 
   // Presentation cost by slide count
   const PRESENTATION_COST: Record<number, number> = { 12: 2, 18: 3, 24: 5 }
   const presentationCost = PRESENTATION_COST[watchSlideCount ?? 12] ?? 2
-
-  // Get available grades for selected subject
-  const availableGrades = useMemo(() => {
-    const subjectConfig = SUBJECTS.find(s => s.value === watchSubject)
-    return subjectConfig?.grades || [1, 2, 3, 4]
-  }, [watchSubject])
-
-  // Reset grade if not available for new subject
-  const handleSubjectChange = (newSubject: Subject) => {
-    form.setValue('subject', newSubject)
-    const newGrades = SUBJECTS.find(s => s.value === newSubject)?.grades || [1]
-    const currentGrade = form.getValues('grade')
-    if (!newGrades.includes(currentGrade)) {
-      form.setValue('grade', newGrades[0])
-    }
-  }
 
   const mutation = useMutation({
     mutationFn: (values: GeneratePresentationFormValues) => generatePresentation(presentationFormToPayload(values), (p) => setProgress(p)),
@@ -228,9 +181,7 @@ export default function GeneratePresentationPage() {
     setErrorCode(null)
     setProgress(0)
     form.reset({
-      subject: 'math',
-      grade: 3,
-      topic: '',
+      prompt: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
@@ -322,46 +273,17 @@ export default function GeneratePresentationPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
             {/* Main compact card */}
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-purple-100">
-              {/* Subject and Grade row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                <Controller
-                  control={form.control}
-                  name="subject"
-                  render={({ field }) => (
-                    <CustomSelect
-                      label="Предмет"
-                      value={field.value}
-                      onChange={(v) => handleSubjectChange(v as Subject)}
-                      options={SUBJECTS.map(s => ({ label: s.label, value: s.value }))}
-                    />
-                  )}
-                />
-
-                <Controller
-                  control={form.control}
-                  name="grade"
-                  render={({ field }) => (
-                    <CustomSelect
-                      label="Класс"
-                      value={field.value}
-                      onChange={field.onChange}
-                      options={availableGrades.map(g => ({ label: `${g} класс`, value: g }))}
-                    />
-                  )}
-                />
-              </div>
-
-              {/* Topic input */}
+              {/* Prompt input */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Тема презентации</label>
+                <label className="block text-sm font-semibold text-slate-700 text-left mb-2">Опишите презентацию</label>
                 <input
                   type="text"
                   className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-lg text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10"
-                  placeholder="Введите тему презентации"
-                  {...form.register('topic')}
+                  placeholder="Геометрия, 8 класс, теорема Пифагора..."
+                  {...form.register('prompt')}
                 />
-                {form.formState.errors.topic && (
-                  <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.topic.message}</p>
+                {form.formState.errors.prompt && (
+                  <p className="text-sm text-red-500 text-left mt-1">{form.formState.errors.prompt.message}</p>
                 )}
               </div>
 

@@ -4,6 +4,7 @@
 -- Step 1: Add new varchar columns
 ALTER TABLE "worksheets" ADD COLUMN IF NOT EXISTS "subject_v2" varchar(100);
 ALTER TABLE "generations" ADD COLUMN IF NOT EXISTS "subject_v2" varchar(100);
+ALTER TABLE "presentations" ADD COLUMN IF NOT EXISTS "subject_v2" varchar(100);
 
 -- Step 2: Copy data from old enum columns (IF they exist)
 DO $$
@@ -34,6 +35,19 @@ BEGIN
   ELSE
     ALTER TABLE "generations" DROP COLUMN IF EXISTS "subject_v2";
   END IF;
+
+  -- presentations: same logic
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'presentations' AND column_name = 'subject'
+      AND data_type != 'character varying'
+  ) THEN
+    UPDATE "presentations" SET "subject_v2" = "subject"::text WHERE "subject_v2" IS NULL;
+    ALTER TABLE "presentations" DROP COLUMN "subject";
+    ALTER TABLE "presentations" RENAME COLUMN "subject_v2" TO "subject";
+  ELSE
+    ALTER TABLE "presentations" DROP COLUMN IF EXISTS "subject_v2";
+  END IF;
 END $$;
 
 -- Step 3: Ensure NOT NULL on worksheets.subject
@@ -44,9 +58,16 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'worksheets' AND column_name = 'subject' AND is_nullable = 'YES'
   ) THEN
-    -- Fill any NULLs first
     UPDATE "worksheets" SET "subject" = 'unknown' WHERE "subject" IS NULL;
     ALTER TABLE "worksheets" ALTER COLUMN "subject" SET NOT NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'presentations' AND column_name = 'subject' AND is_nullable = 'YES'
+  ) THEN
+    UPDATE "presentations" SET "subject" = 'unknown' WHERE "subject" IS NULL;
+    ALTER TABLE "presentations" ALTER COLUMN "subject" SET NOT NULL;
   END IF;
 END $$;
 
@@ -68,6 +89,14 @@ BEGIN
       AND data_type != 'character varying'
   ) THEN
     ALTER TABLE "generations" ALTER COLUMN "subject" TYPE varchar(100) USING "subject"::text;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'presentations' AND column_name = 'subject'
+      AND data_type != 'character varying'
+  ) THEN
+    ALTER TABLE "presentations" ALTER COLUMN "subject" TYPE varchar(100) USING "subject"::text;
   END IF;
 END $$;
 

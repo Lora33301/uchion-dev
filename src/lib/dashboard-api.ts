@@ -226,6 +226,19 @@ export function formatSubjectName(subject: string): string {
     algebra: 'Алгебра',
     geometry: 'Геометрия',
     russian: 'Русский язык',
+    physics: 'Физика',
+    chemistry: 'Химия',
+    biology: 'Биология',
+    history: 'История',
+    social_studies: 'Обществознание',
+    geography: 'География',
+    literature: 'Литература',
+    informatics: 'Информатика',
+    english: 'Английский язык',
+    world_around: 'Окружающий мир',
+    obzh: 'ОБЖ',
+    music: 'Музыка',
+    technology: 'Технология',
   }
   return names[subject] || subject
 }

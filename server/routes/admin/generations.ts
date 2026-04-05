@@ -20,7 +20,7 @@ const router = Router()
 const GenerationsQuerySchema = z.object({
   page: z.string().optional().transform(v => Math.max(1, parseInt(v || '1'))),
   limit: z.string().optional().transform(v => Math.min(100, Math.max(1, parseInt(v || '20')))),
-  subject: z.enum(['all', 'math', 'algebra', 'geometry', 'russian']).optional().default('all'),
+  subject: z.string().optional().default('all'),
   search: z.string().optional(),
 })
 

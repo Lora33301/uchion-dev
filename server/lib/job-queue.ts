@@ -2,7 +2,7 @@ import { Queue, Worker, QueueEvents } from 'bullmq'
 import { createBullMQConnection } from './redis.js'
 import { getAIProvider, getClaudeProvider } from '../../api/_lib/ai-provider.js'
 import { withAIContext } from '../../api/_lib/ai-usage.js'
-import type { GeneratePayload } from '../../shared/types.js'
+import type { GenerateParams } from '../../api/_lib/ai-provider.js'
 import type { Subject } from '../../shared/worksheet.js'
 
 // ==================== TYPES ====================
@@ -95,7 +95,7 @@ export async function initQueues(): Promise<void> {
               format: data.format,
               variantIndex: data.variantIndex,
               isPaid: data.isPaid,
-            } as GeneratePayload,
+            } as GenerateParams,
             (percent) => {
               job.updateProgress(percent)
             }

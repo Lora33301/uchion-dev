@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -14,12 +15,11 @@ import { fetchFolders } from '../lib/dashboard-api'
 import type { PresentationStructure, GeneratePayload, GeneratePresentationPayload } from '../../shared/types'
 import { downloadBase64File } from '../lib/download-utils'
 import {
-  SUBJECTS,
   FORMATS,
   PRESENTATION_COST,
+  EXAMPLE_PROMPTS,
   GenerateFormSchema,
   GeneratePresentationFormSchema,
-  type Subject,
   type TaskTypeId,
   type GenerateFormValues,
   type GeneratePresentationFormValues,
@@ -35,11 +35,18 @@ import type { GenerateMode } from '../components/generation/types'
 // =============================================================================
 
 function formValuesToPayload(v: GenerateFormValues): GeneratePayload {
-  return { subject: v.subject, grade: v.grade, topic: v.topic, folderId: v.folderId, taskTypes: v.taskTypes, difficulty: v.difficulty, format: v.format, variantIndex: v.variantIndex }
+  return {
+    prompt: v.prompt,
+    folderId: v.folderId,
+    taskTypes: v.taskTypes,
+    difficulty: v.difficulty,
+    format: v.format,
+    variantIndex: v.variantIndex,
+  }
 }
 
 function presentationFormToPayload(v: GeneratePresentationFormValues): GeneratePresentationPayload {
-  return { subject: v.subject, grade: v.grade, topic: v.topic, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
+  return { prompt: v.prompt, themeType: v.themeType, themePreset: v.themePreset, slideCount: v.slideCount }
 }
 
 function getGreeting(): string {
@@ -49,6 +56,82 @@ function getGreeting(): string {
   if (hour >= 12 && hour < 18) return 'Добрый день'
   return 'Добрый вечер'
 }
+
+// =============================================================================
+// Small sub-components
+// =============================================================================
+
+interface ModeChipProps {
+  active: boolean
+  disabled?: boolean
+  icon: ReactNode
+  label: string
+  onClick?: () => void
+}
+
+function ModeChip({ active, disabled, icon, label, onClick }: ModeChipProps) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={disabled ? 'Скоро будет доступно' : undefined}
+      className={`
+        flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border
+        ${active
+          ? 'bg-[#8C52FF] text-white border-[#8C52FF] shadow-md shadow-purple-400/25'
+          : disabled
+          ? 'bg-white text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+          : 'bg-white text-slate-600 border-slate-200 hover:border-[#8C52FF]/50 hover:text-slate-800'
+        }
+      `}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+// =============================================================================
+// Icons (inline SVG)
+// =============================================================================
+
+const ClipboardIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+  </svg>
+)
+
+const ScreenIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+)
+
+const BookIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+  </svg>
+)
+
+const ImageIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+)
+
+const SettingsIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
+const SparklesIcon = () => (
+  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+    <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+  </svg>
+)
 
 // =============================================================================
 // Component
@@ -117,13 +200,11 @@ export default function GeneratePage() {
 
   const folders = foldersData?.folders || []
 
-  // Worksheet form — subject/grade start undefined (placeholder state)
+  // Worksheet form — prompt-based
   const form = useForm<GenerateFormValues>({
     resolver: zodResolver(GenerateFormSchema),
     defaultValues: {
-      subject: undefined,
-      grade: undefined,
-      topic: '',
+      prompt: '',
       folderId: null,
       format: 'test_and_open',
       variantIndex: 0,
@@ -132,75 +213,39 @@ export default function GeneratePage() {
     }
   })
 
-  // Presentation form — subject/grade start undefined (placeholder state)
+  // Presentation form — prompt-based
   const presentationForm = useForm<GeneratePresentationFormValues>({
     resolver: zodResolver(GeneratePresentationFormSchema),
     defaultValues: {
-      subject: undefined,
-      grade: undefined,
-      topic: '',
+      prompt: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
     }
   })
 
-  const watchSubject = form.watch('subject')
+  // Helpers to interact with the active form's prompt field
+  const activePromptRegister = mode === 'worksheet' ? form.register('prompt') : presentationForm.register('prompt')
+  const setActivePrompt = (value: string) => {
+    if (mode === 'worksheet') {
+      form.setValue('prompt', value)
+      form.clearErrors('prompt')
+    } else {
+      presentationForm.setValue('prompt', value)
+      presentationForm.clearErrors('prompt')
+    }
+  }
+
   const watchFormat = form.watch('format')
   const watchVariantIndex = form.watch('variantIndex')
-  const watchPresentationSubject = presentationForm.watch('subject')
   const watchSlideCount = presentationForm.watch('slideCount')
 
   const presentationCost = PRESENTATION_COST[watchSlideCount ?? 12] ?? 2
 
-  // Get available grades for selected subject (worksheet)
-  const availableGrades = useMemo(() => {
-    if (!watchSubject) return []
-    const subjectConfig = SUBJECTS.find(s => s.value === watchSubject)
-    return subjectConfig?.grades || []
-  }, [watchSubject])
-
-  // Get available grades for selected subject (presentation)
-  const availablePresentationGrades = useMemo(() => {
-    if (!watchPresentationSubject) return []
-    const subjectConfig = SUBJECTS.find(s => s.value === watchPresentationSubject)
-    return subjectConfig?.grades || []
-  }, [watchPresentationSubject])
-
   // Derive currentFormat and currentVariant from watched values
-  const derivedFormat = useMemo(() => {
-    return FORMATS.find(f => f.id === watchFormat)
-  }, [watchFormat])
-
-  const derivedVariant = useMemo(() => {
-    return derivedFormat?.variants[watchVariantIndex]
-  }, [derivedFormat, watchVariantIndex])
-
+  const derivedFormat = FORMATS.find(f => f.id === watchFormat)
+  const derivedVariant = derivedFormat?.variants[watchVariantIndex]
   const generationCost = derivedVariant?.generations || 1
-
-  // Reset grade if not available for new subject (worksheet)
-  const handleSubjectChange = (newSubject: Subject) => {
-    form.setValue('subject', newSubject)
-    form.clearErrors('subject')
-    form.clearErrors('grade')
-    const newGrades = SUBJECTS.find(s => s.value === newSubject)?.grades || [1]
-    const currentGrade = form.getValues('grade')
-    if (!newGrades.includes(currentGrade)) {
-      form.setValue('grade', newGrades[0])
-    }
-  }
-
-  // Reset grade if not available for new subject (presentation)
-  const handlePresentationSubjectChange = (newSubject: Subject) => {
-    presentationForm.setValue('subject', newSubject)
-    presentationForm.clearErrors('subject')
-    presentationForm.clearErrors('grade')
-    const newGrades = SUBJECTS.find(s => s.value === newSubject)?.grades || [1]
-    const currentGrade = presentationForm.getValues('grade')
-    if (!newGrades.includes(currentGrade)) {
-      presentationForm.setValue('grade', newGrades[0])
-    }
-  }
 
   // Toggle task type selection (at least one must remain selected)
   const toggleTaskType = (typeId: TaskTypeId) => {
@@ -236,7 +281,12 @@ export default function GeneratePage() {
       refreshAuth()
 
       saveSession(sessionId, {
-        payload: { subject: form.getValues('subject'), grade: form.getValues('grade'), topic: form.getValues('topic'), difficulty: form.getValues('difficulty') },
+        payload: {
+          subject: worksheet.subject,
+          grade: parseInt(worksheet.grade) || 0,
+          topic: worksheet.topic,
+          difficulty: form.getValues('difficulty'),
+        },
         worksheet,
         pdfBase64: worksheet.pdfBase64
       })
@@ -278,16 +328,13 @@ export default function GeneratePage() {
     downloadBase64File(generatedPresentation.pptxBase64, filename, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
   }
 
-
   const handleCreateNewPresentation = () => {
     setGeneratedPresentation(null)
     setErrorText(null)
     setErrorCode(null)
     setProgress(0)
     presentationForm.reset({
-      subject: undefined,
-      grade: undefined,
-      topic: '',
+      prompt: '',
       themeType: 'preset',
       themePreset: 'professional',
       slideCount: 12,
@@ -381,7 +428,24 @@ export default function GeneratePage() {
     presentationMutation.mutate(values)
   }
 
+  // Handle unified prompt submit
+  const handlePromptSubmit = () => {
+    if (mode === 'worksheet') {
+      form.handleSubmit(onSubmit)()
+    } else {
+      presentationForm.handleSubmit(onPresentationSubmit)()
+    }
+  }
+
   const isLoading = mutation.isPending || presentationMutation.isPending
+
+  // Prompt field error (from active form)
+  const promptError = mode === 'worksheet'
+    ? form.formState.errors.prompt?.message
+    : presentationForm.formState.errors.prompt?.message
+
+  // Current cost badge value
+  const currentCost = mode === 'worksheet' ? generationCost : presentationCost
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-purple-50 to-white font-sans text-slate-900 relative overflow-hidden">
@@ -390,90 +454,163 @@ export default function GeneratePage() {
 
       <Header />
 
-      <main className="relative z-10 mx-auto flex max-w-5xl flex-col items-center px-4 py-12 text-center">
+      <main className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-4 py-12 text-center">
         {/* Greeting header */}
-        <div className="w-full mb-10">
+        <div className="w-full mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             {greeting}{user?.name ? `, ${user.name}` : ''}!
           </h1>
-          <p className="text-lg text-slate-500">Какой материал хотите сгенерировать?</p>
+          <p className="text-lg text-slate-500">Опишите, что хотите создать</p>
         </div>
 
-        {/* Mode switcher + Generations counter */}
-        <div className="w-full mb-6 flex items-center justify-between gap-2">
-          <div className="inline-flex bg-purple-50/80 backdrop-blur-sm rounded-xl p-1 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
-            <button
-              type="button"
-              onClick={() => { setMode('worksheet'); setGeneratedPresentation(null); setErrorText(null); }}
-              className={`px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-lg text-sm font-semibold transition-all ${
+        {/* Unified prompt input */}
+        <div className="w-full mb-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={
                 mode === 'worksheet'
-                  ? 'bg-[#8C52FF] text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              Задания
-            </button>
+                  ? 'Задания по математике, 5 класс, тема дроби...'
+                  : 'Презентация по геометрии, 8 класс, теорема Пифагора...'
+              }
+              className={`h-14 w-full rounded-full border bg-white px-6 pr-36 text-base text-slate-900 placeholder:text-slate-400 outline-none transition-all shadow-sm
+                ${promptError
+                  ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-400/10'
+                  : 'border-slate-200 focus:border-[#8C52FF] focus:ring-4 focus:ring-[#8C52FF]/10'
+                }
+              `}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handlePromptSubmit() } }}
+              {...activePromptRegister}
+            />
             <button
               type="button"
-              onClick={() => { setMode('presentation'); setErrorText(null); }}
-              className={`px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                mode === 'presentation'
-                  ? 'bg-[#8C52FF] text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              disabled={isLoading}
+              onClick={isGenerationsExhausted ? () => setShowBuyModal(true) : handlePromptSubmit}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 px-5 py-2 rounded-full bg-[#8C52FF] hover:bg-[#7B3FEE] text-white text-sm font-semibold transition-all shadow-md shadow-purple-400/30 disabled:opacity-60"
             >
-              Презентация
+              {isLoading ? (
+                <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <SparklesIcon />
+              )}
+              <span className="hidden sm:inline">Создать</span>
+              <span className="flex items-center gap-1 bg-white/20 rounded-full px-2 py-0.5 text-xs">
+                <SparklesIcon />
+                {currentCost}
+              </span>
             </button>
+          </div>
+          {promptError && (
+            <p className="text-sm text-red-500 text-left mt-1.5 ml-4">{promptError}</p>
+          )}
+        </div>
+
+        {/* Material type chips + generations counter row */}
+        <div className="w-full flex items-center justify-between gap-2 flex-wrap mb-6">
+          <div className="flex flex-wrap gap-2">
+            <ModeChip
+              active={mode === 'worksheet'}
+              icon={<ClipboardIcon />}
+              label="Задания"
+              onClick={() => {
+                setMode('worksheet')
+                setGeneratedPresentation(null)
+                setErrorText(null)
+                setErrorCode(null)
+                setShowAdvanced(false)
+              }}
+            />
+            <ModeChip
+              active={mode === 'presentation'}
+              icon={<ScreenIcon />}
+              label="Презентация"
+              onClick={() => {
+                setMode('presentation')
+                setErrorText(null)
+                setErrorCode(null)
+                setShowAdvanced(false)
+              }}
+            />
+            <ModeChip
+              active={false}
+              disabled
+              icon={<BookIcon />}
+              label="План урока"
+            />
+            <ModeChip
+              active={false}
+              disabled
+              icon={<ImageIcon />}
+              label="Картинка"
+            />
           </div>
 
           {/* Generations counter */}
-          {user && <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-3 py-2 sm:px-4 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
-              <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
-              </svg>
-              <span className="text-sm font-semibold text-slate-700">
-                <span className="hidden sm:inline">Генераций: </span>{generationsLeft}
-              </span>
+          {user && (
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-purple-50/80 backdrop-blur-sm rounded-full px-3 py-2 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]">
+                <svg className="w-4 h-4 text-[#8C52FF]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                </svg>
+                <span className="text-sm font-semibold text-slate-700">
+                  <span className="hidden sm:inline">Генераций: </span>{generationsLeft}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-50/80 backdrop-blur-sm text-[#8C52FF] hover:bg-purple-100 transition-all hover:scale-105 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]"
+                title="Пополнить генерации"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowBuyModal(true)}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-50/80 backdrop-blur-sm text-[#8C52FF] hover:bg-purple-100 transition-all hover:scale-105 border border-purple-200/60 shadow-[0_0_8px_rgba(140,82,255,0.15)]"
-              title="Пополнить генерации"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-            </button>
-          </div>}
+          )}
         </div>
 
-        {/* Worksheet Form */}
+        {/* Collapsible params toggle */}
+        <div className="w-full mb-4">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            <SettingsIcon />
+            {mode === 'worksheet' ? 'Параметры задания' : 'Параметры презентации'}
+            <svg
+              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Worksheet params */}
         {mode === 'worksheet' && (
           <WorksheetGenerateForm
             form={form}
-            availableGrades={availableGrades}
             currentFormat={derivedFormat}
             currentVariant={derivedVariant}
             generationCost={generationCost}
             showAdvanced={showAdvanced}
-            isPending={mutation.isPending}
-            isDisabled={mutation.isPending}
             errorText={errorText}
             errorCode={errorCode}
-            generationsExhausted={isGenerationsExhausted}
-            onSubjectChange={handleSubjectChange}
-            onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
             onToggleTaskType={toggleTaskType}
             onOpenBuyModal={() => setShowBuyModal(true)}
-            onSubmit={onSubmit}
             user={user}
             folders={folders}
           />
         )}
 
-        {/* Presentation tab */}
+        {/* Presentation params + result */}
         {mode === 'presentation' && (
           <>
             {/* Success state - preview + download */}
@@ -482,32 +619,46 @@ export default function GeneratePage() {
                 presentation={generatedPresentation}
                 themePreset={presentationForm.getValues('themePreset')}
                 onDownloadPptx={handleDownloadPptx}
-
                 onCreateNew={handleCreateNewPresentation}
               />
             )}
 
-            {/* Generation form - hidden when result is shown */}
+            {/* Params - hidden when result is shown */}
             {!generatedPresentation && (
               <PresentationGenerateForm
                 form={presentationForm}
-                availableGrades={availablePresentationGrades}
-                presentationCost={presentationCost}
-                isPending={presentationMutation.isPending}
-                isDisabled={presentationMutation.isPending}
                 errorText={errorText}
                 errorCode={errorCode}
-                generationsExhausted={isGenerationsExhausted}
-                onSubjectChange={handlePresentationSubjectChange}
                 onOpenBuyModal={() => setShowBuyModal(true)}
-                onSubmit={onPresentationSubmit}
               />
             )}
           </>
         )}
 
-        <p className="mt-6 text-sm text-slate-400">
-          Этот сервис помогает экономить время учителю. Проверяйте материалы перед печатью.
+        {/* Example cards */}
+        {!generatedPresentation && (
+          <div className="w-full mt-10">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3 text-left">Примеры запросов</p>
+            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+              {EXAMPLE_PROMPTS.map(ex => (
+                <button
+                  key={ex.prompt}
+                  type="button"
+                  onClick={() => setActivePrompt(ex.prompt)}
+                  className="flex-1 min-w-0 text-left bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-[#8C52FF]/50 hover:shadow-sm transition-all group"
+                >
+                  <div className="text-xs font-semibold text-slate-500 mb-1 group-hover:text-[#8C52FF] transition-colors">
+                    {ex.subject}, {ex.grade}
+                  </div>
+                  <div className="text-sm font-medium text-slate-800 truncate">{ex.topic}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="mt-8 text-sm text-slate-400">
+          Проверяйте материалы перед печатью
         </p>
       </main>
 

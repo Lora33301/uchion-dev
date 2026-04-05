@@ -11,8 +11,9 @@ import { checkGenerateRateLimit, checkDailyGenerationLimit, checkRateLimit, chec
 import { trackGeneration, sendInstantFailureAlert } from '../../api/_lib/alerts/generation-alerts.js'
 import type { AuthenticatedRequest } from '../types.js'
 import { withAIContext } from '../../api/_lib/ai-usage.js'
-import type { GeneratePayload, Worksheet } from '../../shared/types.js'
+import type { GeneratePayload, ResolvedGeneratePayload, Worksheet } from '../../shared/types.js'
 import { GenerateSchema, TaskTypeIdSchema, DifficultyLevelSchema, WorksheetSchema } from '../../shared/worksheet.js'
+import { parsePrompt } from '../../api/_lib/generation/parse-prompt.js'
 import { getUserPlanConfig } from '../../shared/plans.js'
 import { calculateGenerationCost } from '../../api/_lib/generation/config/worksheet-formats.js'
 import { generationLimiter } from '../../api/_lib/generation/concurrency-limiter.js'
@@ -26,8 +27,6 @@ type SSEEvent =
   | { type: 'result'; data: { worksheet: Worksheet } }
   | { type: 'error'; code: string; message: string }
 
-type Input = z.infer<typeof GenerateSchema>
-
 // ==================== POST /api/generate ====================
 router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
   const parse = GenerateSchema.safeParse(req.body)
@@ -39,13 +38,55 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     })
   }
 
-  const input: Input = parse.data
+  const raw = parse.data
   const userId = req.user.id
+
+  // Resolve prompt into structured fields
+  let resolved: ResolvedGeneratePayload
+  if (raw.prompt && (!raw.subject || raw.grade == null || !raw.topic)) {
+    try {
+      const parsed = await parsePrompt(raw.prompt)
+      resolved = {
+        subject: raw.subject || parsed.subject,
+        grade: raw.grade ?? parsed.grade,
+        topic: raw.topic || parsed.topic,
+        folderId: raw.folderId,
+        taskTypes: raw.taskTypes,
+        difficulty: raw.difficulty,
+        format: raw.format,
+        variantIndex: raw.variantIndex,
+      }
+    } catch (e) {
+      console.error('[API] Failed to parse prompt:', e)
+      return res.status(400).json({
+        status: 'error',
+        code: 'VALIDATION_ERROR',
+        message: 'Не удалось распознать предмет, класс и тем�� из запроса. Попробуйте уточнить.',
+      })
+    }
+  } else if (raw.subject && raw.grade != null && raw.topic) {
+    resolved = {
+      subject: raw.subject,
+      grade: raw.grade,
+      topic: raw.topic,
+      folderId: raw.folderId,
+      taskTypes: raw.taskTypes,
+      difficulty: raw.difficulty,
+      format: raw.format,
+      variantIndex: raw.variantIndex,
+    }
+  } else {
+    return res.status(400).json({
+      status: 'error',
+      code: 'VALIDATION_ERROR',
+      message: 'Введите запрос или укажите предмет, класс и тему.',
+    })
+  }
 
   // Calculate generation cost based on format + variant
   const cost = calculateGenerationCost(
-    input.format ?? 'test_and_open',
-    input.variantIndex ?? 0
+    resolved.format ?? 'test_and_open',
+    resolved.variantIndex ?? 0
   )
 
   // Atomically decrement generationsLeft -- prevents race condition.
@@ -150,9 +191,9 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     const [inserted] = await db.insert(generations).values({
       userId,
       status: 'processing',
-      subject: input.subject,
-      grade: input.grade,
-      topic: input.topic,
+      subject: resolved.subject,
+      grade: resolved.grade,
+      topic: resolved.topic,
       startedAt: new Date(),
     }).returning({ id: generations.id })
     genRecord = inserted || null
@@ -172,13 +213,13 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
       const events = getWorksheetEvents()!
 
       const jobData: WorksheetJobData = {
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
-        taskTypes: input.taskTypes,
-        difficulty: input.difficulty,
-        format: input.format,
-        variantIndex: input.variantIndex,
+        subject: resolved.subject,
+        grade: resolved.grade,
+        topic: resolved.topic,
+        taskTypes: resolved.taskTypes,
+        difficulty: resolved.difficulty,
+        format: resolved.format,
+        variantIndex: resolved.variantIndex,
         isPaid,
         userId,
       }
@@ -221,20 +262,20 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
       // Fallback: p-limit in-process generation (Redis unavailable or USE_BULLMQ=false)
       const ai = getAIProvider()
       const generateParams = {
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
-        taskTypes: input.taskTypes,
-        difficulty: input.difficulty,
-        format: input.format,
-        variantIndex: input.variantIndex,
+        subject: resolved.subject,
+        grade: resolved.grade,
+        topic: resolved.topic,
+        taskTypes: resolved.taskTypes,
+        difficulty: resolved.difficulty,
+        format: resolved.format,
+        variantIndex: resolved.variantIndex,
         isPaid,
       }
 
       const aiSessionId = crypto.randomUUID()
       worksheet = await generationLimiter(() => withAIContext(
-        { sessionId: aiSessionId, userId, subject: input.subject, grade: input.grade },
-        () => ai.generateWorksheet(generateParams as GeneratePayload, (percent) => {
+        { sessionId: aiSessionId, userId, subject: resolved.subject, grade: resolved.grade },
+        () => ai.generateWorksheet(generateParams, (percent) => {
           sendEvent({ type: 'progress', percent })
         })
       ))
@@ -262,7 +303,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
     let pdfBase64: string | null = null
     try {
-      pdfBase64 = await buildPdf(worksheet, input as GeneratePayload, 'standard', addWatermark)
+      pdfBase64 = await buildPdf(worksheet, resolved as GeneratePayload, 'standard', addWatermark)
     } catch (e) {
       console.error('[API] PDF generation error:', e)
       // Log failed generation to DB
@@ -277,18 +318,18 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
         db.insert(generations).values({
           userId,
           status: 'failed',
-          subject: input.subject,
-          grade: input.grade,
-          topic: input.topic,
+          subject: resolved.subject,
+          grade: resolved.grade,
+          topic: resolved.topic,
           errorMessage: pdfErrorMsg,
         }).catch(dbErr => console.error('[API] Failed to log generation error:', dbErr))
       }
       // Track failed generation for alerts
       trackGeneration(false).catch((err) => console.error('[Alerts] Failed to track generation:', err))
       sendInstantFailureAlert({
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
+        subject: resolved.subject,
+        grade: resolved.grade,
+        topic: resolved.topic,
         errorMessage: 'PDF generation failed: ' + (e instanceof Error ? e.message : String(e)),
         userEmail: req.user.email || undefined,
       }).catch((err) => console.error('[Alerts] Failed to send instant failure alert:', err))
@@ -304,17 +345,17 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
       const tempWorksheet = {
         ...worksheet,
         id,
-        grade: `${input.grade} класс`,
+        grade: `${resolved.grade} класс`,
         pdfBase64: pdfBase64 ?? ''
       }
 
       const [inserted] = await db.insert(worksheets).values({
         userId,
-        folderId: input.folderId || null,
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
-        difficulty: input.difficulty || 'medium',
+        folderId: resolved.folderId || null,
+        subject: resolved.subject,
+        grade: resolved.grade,
+        topic: resolved.topic,
+        difficulty: resolved.difficulty || 'medium',
         content: JSON.stringify(tempWorksheet),
       }).returning({ id: worksheets.id })
 
@@ -341,7 +382,7 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
     const finalWorksheet: Worksheet = {
       ...worksheet,
       id: dbId || id,
-      grade: `${input.grade} класс`,
+      grade: `${resolved.grade} класс`,
       pdfBase64: pdfBase64 ?? ''
     }
 
@@ -376,9 +417,9 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
       db.insert(generations).values({
         userId,
         status: 'failed',
-        subject: input.subject,
-        grade: input.grade,
-        topic: input.topic,
+        subject: resolved.subject,
+        grade: resolved.grade,
+        topic: resolved.topic,
         errorMessage: errMsg,
       }).catch(dbErr => console.error('[API] Failed to log generation error:', dbErr))
     }
@@ -405,9 +446,9 @@ router.post('/', withAuth(async (req: AuthenticatedRequest, res: Response) => {
 
     // Instant alert to admins
     sendInstantFailureAlert({
-      subject: input.subject,
-      grade: input.grade,
-      topic: input.topic,
+      subject: resolved.subject,
+      grade: resolved.grade,
+      topic: resolved.topic,
       errorMessage: err instanceof Error ? err.message : String(err),
       userEmail: req.user.email || undefined,
     }).catch((e) => console.error('[Alerts] Failed to send instant failure alert:', e))
@@ -433,7 +474,7 @@ const RegenerateInputSchema = z.object({
   taskType: TaskTypeIdSchema,
   isTest: z.boolean(),
   context: z.object({
-    subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
+    subject: z.string().min(1).max(100),
     grade: z.number().int().min(1).max(11),
     topic: z.string().min(3).max(200),
     difficulty: DifficultyLevelSchema,

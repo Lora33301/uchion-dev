@@ -142,7 +142,7 @@ router.post('/test/timeout', withAdminAuth(async (req: AuthenticatedRequest, res
 const TestLowQualitySchema = z.object({
   score: z.number().int().min(0).max(10).default(5),
   topic: z.string().min(1).max(200).default('Тестовая тема'),
-  subject: z.enum(['math', 'algebra', 'geometry', 'russian']).default('math'),
+  subject: z.string().min(1).max(100).default('math'),
   grade: z.number().int().min(1).max(4).default(3),
 })
 

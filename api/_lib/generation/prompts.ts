@@ -24,6 +24,9 @@ import { getMathDifficultyPrompt } from './config/subjects/math/difficulty.js'
 import { getAlgebraDifficultyPrompt } from './config/subjects/algebra/difficulty.js'
 import { getGeometryDifficultyPrompt } from './config/subjects/geometry/difficulty.js'
 
+// Generic fallback for unknown subjects
+import { buildGenericPromptConfig, buildGenericGradeTier } from './generic-prompt.js'
+
 // =============================================================================
 // Per-subject config registry
 // =============================================================================
@@ -35,8 +38,8 @@ const SUBJECT_PROMPT_CONFIGS: Record<string, SubjectPromptConfig> = {
   geometry: geometryPromptConfig,
 }
 
-function getSubjectPromptConfig(subject: string): SubjectPromptConfig | null {
-  return SUBJECT_PROMPT_CONFIGS[subject] ?? null
+function getSubjectPromptConfig(subject: string): SubjectPromptConfig {
+  return SUBJECT_PROMPT_CONFIGS[subject] ?? buildGenericPromptConfig(subject)
 }
 
 const GRADE_TIER_GETTERS: Record<string, (grade: number) => GradeTierConfig | null> = {
@@ -46,9 +49,9 @@ const GRADE_TIER_GETTERS: Record<string, (grade: number) => GradeTierConfig | nu
   geometry: getGeometryGradeTier,
 }
 
-function getGradeTierForGrade(subject: string, grade: number): GradeTierConfig | null {
+function getGradeTierForGrade(subject: string, grade: number): GradeTierConfig {
   const getter = GRADE_TIER_GETTERS[subject]
-  return getter ? getter(grade) : null
+  return getter?.(grade) ?? buildGenericGradeTier(grade)
 }
 
 const SUBJECT_DIFFICULTY_GETTERS: Record<string, (grade: number, level: DifficultyLevel) => string> = {
@@ -645,32 +648,29 @@ export function buildSystemPrompt(subjectId: string, grade?: number, difficulty?
   const promptConfig = getSubjectPromptConfig(subjectId)
   const tier = grade != null ? getGradeTierForGrade(subjectId, grade) : null
 
-  if (promptConfig && tier) {
-    // NEW config-driven path
+  // Config path always works — detailed for known subjects, generic for unknown
+  {
     const parts = [
       BASE_ROLE_PROMPT,
       promptConfig.systemPrompt,
     ]
 
-    if (tier.cognitiveContract) {
+    if (tier?.cognitiveContract) {
       parts.push(`\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 \u26D4 \u041A\u041E\u0413\u041D\u0418\u0422\u0418\u0412\u041D\u042B\u0419 \u041A\u041E\u041D\u0422\u0420\u0410\u041A\u0422 \u0414\u041B\u042F ${grade} \u041A\u041B\u0410\u0421\u0421\u0410 \u26D4
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n${tier.cognitiveContract}`)
     }
 
-    if (tier.exampleTask) {
+    if (tier?.exampleTask) {
       parts.push(`\u041F\u0420\u0418\u041C\u0415\u0420 \u0425\u041E\u0420\u041E\u0428\u0415\u0413\u041E \u0417\u0410\u0414\u0410\u041D\u0418\u042F:\n${tier.exampleTask}`)
     }
 
-    if (tier.examContext) {
+    if (tier?.examContext) {
       parts.push(tier.examContext)
     }
 
     return parts.filter(Boolean).join('\n\n')
   }
-
-  // FALLBACK: base role prompt only (no per-subject config found)
-  return BASE_ROLE_PROMPT
 }
 
 /**

@@ -134,9 +134,10 @@ export interface PresentationStructure {
 }
 
 export type GeneratePresentationPayload = {
-  subject: Subject
-  grade: number
-  topic: string
+  prompt?: string
+  subject?: string
+  grade?: number
+  topic?: string
   themeType: 'preset' | 'custom'
   themePreset?: PresentationThemePreset
   themeCustom?: string
