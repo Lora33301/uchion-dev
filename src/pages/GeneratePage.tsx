@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import LandingSections from '../components/landing/LandingSections'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
@@ -667,6 +668,8 @@ export default function GeneratePage() {
 
         <p className="mt-8 text-sm text-slate-400">Проверяйте материалы перед печатью</p>
       </main>
+
+      <LandingSections />
 
       {/* Loading Overlay */}
       {isLoading && <GenerationLoadingOverlay mode={mode} progress={progress} />}

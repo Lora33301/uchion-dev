@@ -52,6 +52,11 @@ export default function Footer() {
                   Тарифы
                 </Link>
               </li>
+              <li>
+                <Link to="/about" className="text-sm text-slate-500 hover:text-[#8C52FF] transition-colors">
+                  О сервисе
+                </Link>
+              </li>
             </ul>
           </div>
 

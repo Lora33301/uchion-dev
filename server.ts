@@ -18,6 +18,7 @@ import healthRoutes from './server/routes/health.js'
 import adminRoutes from './server/routes/admin/index.js'
 import telegramRoutes from './server/routes/telegram.js'
 import billingRoutes from './server/routes/billing.js'
+import publicRoutes from './server/routes/public.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -194,6 +195,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/telegram', telegramRoutes)
 app.use('/api/billing', billingRoutes)
 app.use('/api', healthRoutes)
+app.use('/api/public', publicRoutes)
 
 // ==================== STATIC FILES ====================
 
