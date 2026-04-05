@@ -440,7 +440,7 @@ export async function handleSubscriptionWebhook(
   // Wrap processing in try/catch: if anything fails after marking the event,
   // unmark it so Prodamus can retry the webhook
   try {
-    return await processSubscriptionEvent(payload, sub, userId, planFromParam, prodamusSubId, prodamusProfileId, paymentStatus, isAutopayment, subscriptionInactive, res)
+    return await processSubscriptionEvent(payload, sub, userId!, planFromParam, prodamusSubId, prodamusProfileId, paymentStatus, isAutopayment, subscriptionInactive, res)
   } catch (error) {
     // Unmark the event so it can be retried on next webhook
     await tryUnmarkEventProcessed('prodamus_subscription', eventKey)
@@ -455,7 +455,7 @@ export async function handleSubscriptionWebhook(
 async function processSubscriptionEvent(
   payload: ProdamusWebhookPayload,
   sub: NonNullable<ProdamusWebhookPayload['subscription']>,
-  userId: string | undefined,
+  userId: string,
   planFromParam: string | undefined,
   prodamusSubId: string,
   prodamusProfileId: string,
@@ -466,13 +466,7 @@ async function processSubscriptionEvent(
 ): Promise<Response> {
   console.log(`[Subscription Webhook] Event: status=${paymentStatus}, autopayment=${isAutopayment}, active_user=${sub.active_user}, active_manager=${sub.active_manager}, payment_num=${sub.payment_num}, subId=${prodamusSubId}, profileId=${prodamusProfileId}, user=${userId}`)
 
-  // Validate userId resolved
-  if (!userId) {
-    const customerEmail = payload.customer_email as string | undefined
-    const customerPhone = payload.customer_phone as string | undefined
-    console.error(`[Subscription Webhook] Cannot resolve userId. email=${customerEmail}, phone=${customerPhone}, profileId=${prodamusProfileId}, subId=${prodamusSubId}`)
-    return res.status(200).json({ status: 'missing_user_id' })
-  }
+  // userId already validated in handleSubscriptionWebhook before idempotency mark
 
   const [user] = await db
     .select({ id: users.id, email: users.email })
@@ -481,8 +475,9 @@ async function processSubscriptionEvent(
     .limit(1)
 
   if (!user) {
-    console.error(`[Subscription Webhook] User not found: ${userId}`)
-    return res.status(200).json({ status: 'user_not_found' })
+    console.error(`[Subscription Webhook] User not found in DB: ${userId}`)
+    // Throw so the catch block in handleSubscriptionWebhook unmarks the event for retry
+    throw new Error(`Subscription webhook: user ${userId} not found in DB`)
   }
 
   // Mark subscription intent as paid (if one exists)
