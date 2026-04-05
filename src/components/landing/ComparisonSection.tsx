@@ -39,7 +39,7 @@ export default function ComparisonSection() {
                   <ul className="space-y-1">
                     {block.manual.items.map((item) => (
                       <li key={item} className="text-xs text-[#64748b] flex items-start gap-1.5">
-                        <span className="text-[#cbd5e1] mt-0.5">\u2022</span>
+                        <span className="text-[#cbd5e1] mt-0.5">{'•'}</span>
                         {item}
                       </li>
                     ))}
@@ -52,7 +52,7 @@ export default function ComparisonSection() {
                   <ul className="space-y-1">
                     {block.uchion.items.map((item) => (
                       <li key={item} className="text-xs text-[#64748b] flex items-start gap-1.5">
-                        <span className="text-[#8C52FF] mt-0.5">\u2022</span>
+                        <span className="text-[#8C52FF] mt-0.5">{'•'}</span>
                         {item}
                       </li>
                     ))}
