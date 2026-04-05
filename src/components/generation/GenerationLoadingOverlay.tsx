@@ -259,9 +259,9 @@ export default function GenerationLoadingOverlay({ mode, progress }: GenerationL
   const Illustration = tip.illustration
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white/60 backdrop-blur-md transition-all">
-      {/* Progress section — centered but shifted up */}
-      <div className="flex-1 flex flex-col items-center justify-center pb-24">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/60 backdrop-blur-md transition-all">
+      {/* Progress section */}
+      <div className="flex flex-col items-center">
         <h3 className="mb-6 text-2xl font-bold text-slate-800">
           {mode === 'worksheet' ? 'Создаем материалы...' : 'Создаем презентацию...'}
         </h3>
@@ -281,8 +281,8 @@ export default function GenerationLoadingOverlay({ mode, progress }: GenerationL
         </div>
       </div>
 
-      {/* Tips carousel — bottom area */}
-      <div className="px-4 pb-12 sm:px-6 sm:pb-16">
+      {/* Tips carousel — below progress */}
+      <div className="mt-10 px-4 sm:px-6 w-full">
         <div className="mx-auto max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(140,82,255,0.12)] border border-[#ede9fe]">
           {/* Illustration area */}
           <div
@@ -302,7 +302,6 @@ export default function GenerationLoadingOverlay({ mode, progress }: GenerationL
               }`}
             >
               <div className="text-[13px] font-semibold text-[#1e293b] mb-1">
-                <span className="text-[#8C52FF] mr-1">tip</span>
                 {tip.title}
               </div>
               <p className="text-[13px] leading-relaxed text-[#64748b]">{tip.text}</p>
