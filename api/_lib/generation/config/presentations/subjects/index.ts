@@ -24,8 +24,13 @@ const configs: Record<string, PresentationSubjectConfig> = {
 
 export function getPresentationSubjectConfig(subject: string): PresentationSubjectConfig {
   const config = configs[subject]
-  if (!config) {
-    throw new Error(`Unknown presentation subject: ${subject}`)
+  if (config) return config
+
+  // Generic fallback for subjects without a dedicated config
+  return {
+    id: subject,
+    name: subject,
+    gradeRange: { from: 1, to: 11 },
+    systemPrompt: `Ты опытный школьный учитель. Создавай информативные и структурированные презентации для школьников, адаптированные под их возраст и уровень подготовки.`,
   }
-  return config
 }
