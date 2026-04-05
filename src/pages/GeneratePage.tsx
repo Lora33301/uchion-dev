@@ -443,7 +443,7 @@ export default function GeneratePage() {
 
         {/* Mode selector + generations counter */}
         <div className="w-full flex items-center justify-between gap-3 flex-wrap mb-6">
-          <div className="flex bg-[#f8f5ff] rounded-[10px] p-0.5">
+          <div className="flex bg-[#f8f5ff] rounded-full p-0.5">
             <button
               type="button"
               onClick={() => {
@@ -453,7 +453,7 @@ export default function GeneratePage() {
                 setErrorCode(null)
                 setShowAdvanced(false)
               }}
-              className={`px-5 py-2 rounded-[8px] text-sm font-medium transition-all ${
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                 mode === 'worksheet'
                   ? 'bg-[#8C52FF] text-white shadow-sm'
                   : 'text-[#8C52FF] hover:text-[#7B3FEE]'
@@ -469,7 +469,7 @@ export default function GeneratePage() {
                 setErrorCode(null)
                 setShowAdvanced(false)
               }}
-              className={`px-5 py-2 rounded-[8px] text-sm font-medium transition-all ${
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                 mode === 'presentation'
                   ? 'bg-[#8C52FF] text-white shadow-sm'
                   : 'text-[#8C52FF] hover:text-[#7B3FEE]'
@@ -482,7 +482,7 @@ export default function GeneratePage() {
           {/* Generations counter */}
           {user && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1.5 bg-[#f8f5ff] rounded-[8px] px-3 py-2 border border-[#ede9fe]">
+              <div className="flex items-center gap-1.5 bg-[#f8f5ff] rounded-full px-3 py-2 border border-[#ede9fe]">
                 <LightningIcon className="w-4 h-4 text-[#7c3aed]" />
                 <span className="text-sm font-semibold text-[#7c3aed]">
                   <span className="hidden sm:inline">Генераций: </span>{generationsLeft}
@@ -491,7 +491,7 @@ export default function GeneratePage() {
               <button
                 type="button"
                 onClick={() => setShowBuyModal(true)}
-                className="flex items-center justify-center w-8 h-8 rounded-[8px] bg-[#f8f5ff] text-[#7c3aed] hover:bg-[#ede9fe] transition-all border border-[#ede9fe]"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-[#f8f5ff] text-[#7c3aed] hover:bg-[#ede9fe] transition-all border border-[#ede9fe]"
                 title="Пополнить генерации"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
