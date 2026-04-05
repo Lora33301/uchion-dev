@@ -73,8 +73,8 @@ export const worksheets = pgTable('worksheets', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }), // Optional folder
   title: varchar('title', { length: 200 }), // Custom user title (null = auto-generated from topic)
-  subject: subjectEnum('subject').notNull(),
-  grade: integer('grade').notNull(), // 1-4
+  subject: varchar('subject', { length: 100 }).notNull(),
+  grade: integer('grade').notNull(), // 1-11
   topic: varchar('topic', { length: 500 }).notNull(),
   difficulty: difficultyEnum('difficulty').notNull().default('medium'),
   content: text('content').notNull(), // JSON string with worksheet structure
@@ -101,7 +101,7 @@ export const generations = pgTable('generations', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   worksheetId: uuid('worksheet_id').references(() => worksheets.id, { onDelete: 'set null' }),
   status: generationStatusEnum('status').notNull().default('pending'),
-  subject: subjectEnum('subject'),
+  subject: varchar('subject', { length: 100 }),
   grade: integer('grade'),
   topic: varchar('topic', { length: 200 }),
   errorMessage: text('error_message'),

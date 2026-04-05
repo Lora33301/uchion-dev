@@ -61,7 +61,7 @@ export interface WorksheetListItem {
   id: string
   folderId?: string | null
   title?: string | null
-  subject: 'math' | 'algebra' | 'geometry' | 'russian'
+  subject: string
   grade: number
   topic: string
   difficulty?: 'easy' | 'medium' | 'hard'
@@ -101,7 +101,7 @@ export interface PresentationListItem {
   id: string
   folderId?: string | null
   title: string
-  subject: 'math' | 'algebra' | 'geometry' | 'russian'
+  subject: string
   grade: number
   topic: string
   themeType: 'preset' | 'custom'

@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
 // --- Enums ---
-export const SubjectSchema = z.enum(['math', 'algebra', 'geometry', 'russian'])
-export type Subject = z.infer<typeof SubjectSchema>
+export const KnownSubjectSchema = z.enum(['math', 'algebra', 'geometry', 'russian'])
+export type KnownSubject = z.infer<typeof KnownSubjectSchema>
+export const SubjectSchema = z.string().min(1).max(100)
+export type Subject = string
 
 export const TaskTypeIdSchema = z.enum([
   'single_choice',
@@ -56,20 +58,40 @@ export const WorksheetSchema = z.object({
 export type Worksheet = z.infer<typeof WorksheetSchema>
 
 // --- Generation Form Schema ---
+// Supports two modes:
+// Mode 1 (new): { prompt: "Физика 8 класс, сила трения" }
+// Mode 2 (legacy): { subject: "math", grade: 3, topic: "Сложение" }
 export const GenerateSchema = z.object({
-  subject: SubjectSchema,
-  grade: z.number().int().min(1).max(11),
-  topic: z.string().min(3).max(200),
+  prompt: z.string().min(3).max(500).optional(),
+  subject: z.string().min(1).max(100).optional(),
+  grade: z.number().int().min(1).max(11).optional(),
+  topic: z.string().min(3).max(200).optional(),
   folderId: z.string().uuid().nullable().optional(),
-  // New fields for extended generation
   taskTypes: z.array(TaskTypeIdSchema).min(1).max(5).optional(),
   difficulty: DifficultyLevelSchema.optional(),
   format: WorksheetFormatIdSchema.optional(),
   variantIndex: z.number().int().min(0).max(2).optional(),
-})
+}).refine(
+  (data) => data.prompt || (data.subject && data.grade != null && data.topic),
+  { message: 'Введите запрос или укажите предмет, класс и тему', path: ['prompt'] }
+)
 export type GenerateFormValues = z.infer<typeof GenerateSchema>
+
 export type GeneratePayload = {
-  subject: Subject
+  prompt?: string
+  subject?: string
+  grade?: number
+  topic?: string
+  folderId?: string | null
+  taskTypes?: TaskTypeId[]
+  difficulty?: DifficultyLevel
+  format?: WorksheetFormatId
+  variantIndex?: number
+}
+
+/** Resolved payload after parsing prompt — all fields guaranteed present */
+export type ResolvedGeneratePayload = {
+  subject: string
   grade: number
   topic: string
   folderId?: string | null
