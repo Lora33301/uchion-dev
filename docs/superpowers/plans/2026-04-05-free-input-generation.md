@@ -1,6 +1,6 @@
 # Free-Input Generation Refactoring Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace hardcoded 4-subject dropdown with free-text input so users can generate worksheets for any school subject.
 
@@ -42,7 +42,7 @@
 - Create: `db/migrations/0018_subject_varchar.sql`
 - Modify: `db/schema.ts:13,76,104`
 
-- [ ] **Step 1: Write the migration SQL**
+- [x] **Step 1: Write the migration SQL**
 
 ```sql
 -- 0018_subject_varchar.sql
@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS "worksheets_subject_idx" ON "worksheets" ("subject");
 
 Save to `db/migrations/0018_subject_varchar.sql`.
 
-- [ ] **Step 2: Update db/schema.ts — replace subjectEnum usage with varchar**
+- [x] **Step 2: Update db/schema.ts — replace subjectEnum usage with varchar**
 
 In `db/schema.ts`, the `subjectEnum` on line 13 stays (for reference/old migrations), but the table columns change:
 
@@ -93,14 +93,14 @@ subject: varchar('subject', { length: 100 }),
 
 Leave the `subjectEnum` definition on line 13 intact — it's referenced by old migrations. Just stop using it in table definitions.
 
-- [ ] **Step 3: Run migration locally and verify**
+- [x] **Step 3: Run migration locally and verify**
 
 Run: `npm run db:migrate`
 Expected: Migration applies, tables have varchar subject columns.
 
 Verify: `npm run db:studio` — open worksheets table, confirm subject column is varchar, existing data preserved.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add db/migrations/0018_subject_varchar.sql db/schema.ts
@@ -115,7 +115,7 @@ git commit -m "feat: migrate subject columns from enum to varchar for free-input
 - Modify: `shared/worksheet.ts:4-5,48,59-70`
 - Modify: `shared/types.ts:60-70`
 
-- [ ] **Step 1: Update shared/worksheet.ts — Subject type**
+- [x] **Step 1: Update shared/worksheet.ts — Subject type**
 
 ```typescript
 // shared/worksheet.ts
@@ -131,7 +131,7 @@ export const SubjectSchema = z.string().min(1).max(100)
 export type Subject = string
 ```
 
-- [ ] **Step 2: Update WorksheetSchema — subject is string**
+- [x] **Step 2: Update WorksheetSchema — subject is string**
 
 ```typescript
 // shared/worksheet.ts, line 46-56: OLD:
@@ -145,7 +145,7 @@ export const WorksheetSchema = z.object({
 
 Verify that `WorksheetSchema` still works by checking line 48 uses `SubjectSchema` which is now `z.string()`.
 
-- [ ] **Step 3: Update GenerateSchema — accept prompt OR structured fields**
+- [x] **Step 3: Update GenerateSchema — accept prompt OR structured fields**
 
 ```typescript
 // shared/worksheet.ts, lines 59-69: OLD:
@@ -182,7 +182,7 @@ export const GenerateSchema = z.object({
 )
 ```
 
-- [ ] **Step 4: Update GeneratePayload type**
+- [x] **Step 4: Update GeneratePayload type**
 
 ```typescript
 // shared/worksheet.ts, lines 71-80: OLD:
@@ -223,7 +223,7 @@ export type ResolvedGeneratePayload = {
 }
 ```
 
-- [ ] **Step 5: Update shared/types.ts — WorksheetListItem**
+- [x] **Step 5: Update shared/types.ts — WorksheetListItem**
 
 ```typescript
 // shared/types.ts, line 60-70: OLD:
@@ -243,12 +243,12 @@ export interface WorksheetListItem {
   // ... rest unchanged
 ```
 
-- [ ] **Step 6: Run existing tests to see what breaks**
+- [x] **Step 6: Run existing tests to see what breaks**
 
 Run: `npm run test:run`
 Expected: `tests/unit/schemas.test.ts` will fail (tests expect enum rejection of 'english').
 
-- [ ] **Step 7: Update tests/unit/schemas.test.ts**
+- [x] **Step 7: Update tests/unit/schemas.test.ts**
 
 ```typescript
 // tests/unit/schemas.test.ts — full replacement:
@@ -306,12 +306,12 @@ describe('Shared Schemas', () => {
 })
 ```
 
-- [ ] **Step 8: Run tests to verify**
+- [x] **Step 8: Run tests to verify**
 
 Run: `npm run test:run`
 Expected: All pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add shared/worksheet.ts shared/types.ts tests/unit/schemas.test.ts
@@ -325,7 +325,7 @@ git commit -m "feat: subject type from enum to string, GenerateSchema accepts pr
 **Files:**
 - Create: `api/_lib/generation/parse-prompt.ts`
 
-- [ ] **Step 1: Create parse-prompt.ts with regex-based parsing**
+- [x] **Step 1: Create parse-prompt.ts with regex-based parsing**
 
 ```typescript
 // api/_lib/generation/parse-prompt.ts
@@ -535,7 +535,7 @@ export const KNOWN_SUBJECT_NAMES: Record<string, string> = Object.fromEntries(
 )
 ```
 
-- [ ] **Step 2: Write tests for parsePromptLocal**
+- [x] **Step 2: Write tests for parsePromptLocal**
 
 Create `tests/unit/parse-prompt.test.ts`:
 
@@ -596,12 +596,12 @@ describe('parsePromptLocal', () => {
 })
 ```
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `npm run test:run -- tests/unit/parse-prompt.test.ts`
 Expected: All pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add api/_lib/generation/parse-prompt.ts tests/unit/parse-prompt.test.ts
@@ -617,7 +617,7 @@ git commit -m "feat: add parsePrompt module — extract subject/grade/topic from
 - Modify: `api/_lib/generation/prompts.ts:644-674,687-701`
 - Modify: `api/_lib/generation/config/index.ts` (no code change needed, `getSubjectConfig` already returns undefined)
 
-- [ ] **Step 1: Create generic-prompt.ts**
+- [x] **Step 1: Create generic-prompt.ts**
 
 ```typescript
 // api/_lib/generation/generic-prompt.ts
@@ -720,7 +720,7 @@ export function buildGenericGradeTier(grade: number): GradeTierConfig {
 }
 ```
 
-- [ ] **Step 2: Modify prompts.ts — add generic fallback in buildSystemPrompt and buildUserPrompt**
+- [x] **Step 2: Modify prompts.ts — add generic fallback in buildSystemPrompt and buildUserPrompt**
 
 In `api/_lib/generation/prompts.ts`:
 
@@ -805,12 +805,12 @@ ${level === 'easy' ? 'Задания на воспроизведение зна�
 }
 ```
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `npm run test:run`
 Expected: All pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add api/_lib/generation/generic-prompt.ts api/_lib/generation/prompts.ts
@@ -825,7 +825,7 @@ git commit -m "feat: generic prompt system for unknown subjects with grade-tier 
 - Modify: `server/routes/generate.ts:29-42,147-161,376-383,430-441`
 - Modify: `api/_lib/ai-models.ts:26-29` (isStemSubject stays, unknown = non-STEM)
 
-- [ ] **Step 1: Update POST /api/generate to accept and parse prompt**
+- [x] **Step 1: Update POST /api/generate to accept and parse prompt**
 
 In `server/routes/generate.ts`, add import and modify the handler:
 
@@ -890,7 +890,7 @@ Key places to update (search-replace `input.` -> `resolved.` within the handler)
 - Line ~307-318: worksheet save to DB
 - Line ~379-383: error logging
 
-- [ ] **Step 2: Update RegenerateInputSchema (line 430-441)**
+- [x] **Step 2: Update RegenerateInputSchema (line 430-441)**
 
 ```typescript
 // OLD:
@@ -920,7 +920,7 @@ const RegenerateInputSchema = z.object({
 })
 ```
 
-- [ ] **Step 3: Update presentations route InputSchema**
+- [x] **Step 3: Update presentations route InputSchema**
 
 In `server/routes/presentations.ts` line 30:
 
@@ -931,7 +931,7 @@ subject: z.enum(['math', 'algebra', 'geometry', 'russian']),
 subject: z.string().min(1).max(100),
 ```
 
-- [ ] **Step 4: Update admin generations filter**
+- [x] **Step 4: Update admin generations filter**
 
 In `server/routes/admin/generations.ts` line 23:
 
@@ -942,12 +942,12 @@ subject: z.enum(['all', 'math', 'algebra', 'geometry', 'russian']).optional().de
 subject: z.string().optional().default('all'),
 ```
 
-- [ ] **Step 5: Run smoke tests to verify existing subjects still work**
+- [x] **Step 5: Run smoke tests to verify existing subjects still work**
 
 Run: `npm run smoke`
 Expected: Pass (DummyProvider, no API calls).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/routes/generate.ts server/routes/presentations.ts server/routes/admin/generations.ts
@@ -965,7 +965,7 @@ git commit -m "feat: API accepts free-text prompt, resolves to subject/grade/top
 - Modify: `src/lib/api.ts` (minor — payload type)
 - Modify: `src/lib/dashboard-api.ts:223-231` (formatSubjectName)
 
-- [ ] **Step 1: Update generation constants — remove SUBJECTS dependency from form schema**
+- [x] **Step 1: Update generation constants — remove SUBJECTS dependency from form schema**
 
 In `src/constants/generation.ts`:
 
@@ -1007,7 +1007,7 @@ export const EXAMPLE_PROMPTS = [
 ]
 ```
 
-- [ ] **Step 2: Update WorksheetGenerateForm.tsx — replace subject/grade dropdowns with text input**
+- [x] **Step 2: Update WorksheetGenerateForm.tsx — replace subject/grade dropdowns with text input**
 
 Replace the subject `<Controller>` + grade `<Controller>` blocks (lines ~68-101) with a single text input:
 
@@ -1046,7 +1046,7 @@ Replace the subject `<Controller>` + grade `<Controller>` blocks (lines ~68-101)
 
 Remove the old topic `<input>` (lines ~105-116) — the prompt field now replaces it.
 
-- [ ] **Step 3: Update GeneratePage.tsx — form defaults and submission**
+- [x] **Step 3: Update GeneratePage.tsx — form defaults and submission**
 
 ```typescript
 // Update form defaults:
@@ -1088,7 +1088,7 @@ Remove `watchSubject`, `availableGrades`, `handleSubjectChange` state/memos — 
 
 Remove the subject-dependent grade reset logic.
 
-- [ ] **Step 4: Update formatSubjectName for unknown subjects**
+- [x] **Step 4: Update formatSubjectName for unknown subjects**
 
 In `src/lib/dashboard-api.ts`:
 
@@ -1129,11 +1129,11 @@ export function formatSubjectName(subject: string): string {
 }
 ```
 
-- [ ] **Step 5: Update api.ts generateWorksheet if needed**
+- [x] **Step 5: Update api.ts generateWorksheet if needed**
 
 The `generateWorksheet` function in `src/lib/api.ts` sends `payload` as-is to `POST /api/generate`. Since `GeneratePayload` type is already updated (Task 2), no code change needed — just verify the type import.
 
-- [ ] **Step 6: Run dev server and test manually**
+- [x] **Step 6: Run dev server and test manually**
 
 Run: `npm run dev`
 
@@ -1143,7 +1143,7 @@ Test:
 3. Click example chips -> should fill input
 4. Existing worksheets in "Мои листы" should display correctly
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/constants/generation.ts src/pages/GeneratePage.tsx src/components/generation/WorksheetGenerateForm.tsx src/lib/dashboard-api.ts
@@ -1157,7 +1157,7 @@ git commit -m "feat: free-text input UI replacing subject/grade dropdowns"
 **Files:**
 - Modify: `api/_lib/providers/openai-provider.ts` (verify GenerateParams type)
 
-- [ ] **Step 1: Verify openai-provider.ts accepts string subject**
+- [x] **Step 1: Verify openai-provider.ts accepts string subject**
 
 Check the `GenerateParams` interface used by `generateWorksheet`. It should already accept `string` for subject since `prompts.ts` `PromptParams` uses `subject: string`.
 
@@ -1171,7 +1171,7 @@ subject: string
 
 The `buildSystemPrompt` and `buildUserPrompt` functions already accept `string` — verified in prompts.ts line 644 and 687.
 
-- [ ] **Step 2: Verify validation agents handle string subjects**
+- [x] **Step 2: Verify validation agents handle string subjects**
 
 Check `api/_lib/generation/validation/agents/index.ts` line 106:
 ```typescript
@@ -1190,12 +1190,12 @@ Unknown subjects will return `false` (non-STEM), which means they'll use the hum
 
 No changes needed.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run: `npm run test:run`
 Expected: All pass.
 
-- [ ] **Step 4: Commit (only if changes were needed)**
+- [x] **Step 4: Commit (only if changes were needed)**
 
 ```bash
 git add api/_lib/providers/openai-provider.ts
@@ -1210,7 +1210,7 @@ git commit -m "fix: ensure AI provider accepts string subjects"
 - Modify: `src/components/generation/PresentationGenerateForm.tsx`
 - Modify: `src/constants/generation.ts` (presentation form schema)
 
-- [ ] **Step 1: Update PresentationGenerateForm similar to WorksheetGenerateForm**
+- [x] **Step 1: Update PresentationGenerateForm similar to WorksheetGenerateForm**
 
 The presentation form also has subject/grade dropdowns. Apply the same pattern:
 - Replace subject+grade+topic with single `prompt` text input
@@ -1225,7 +1225,7 @@ The presentation form also has subject/grade dropdowns. Apply the same pattern:
 // With single prompt input (same pattern as WorksheetGenerateForm, Task 6 Step 2)
 ```
 
-- [ ] **Step 2: Update presentation generation route to parse prompt**
+- [x] **Step 2: Update presentation generation route to parse prompt**
 
 The presentation route (`server/routes/presentations.ts`) already had its InputSchema updated in Task 5 Step 3. But it also needs prompt parsing like the worksheet route:
 
@@ -1234,12 +1234,12 @@ The presentation route (`server/routes/presentations.ts`) already had its InputS
 // Add same prompt resolution logic as generate.ts (Task 5 Step 1)
 ```
 
-- [ ] **Step 3: Test presentation generation**
+- [x] **Step 3: Test presentation generation**
 
 Run: `npm run dev`
 Test: Type "Биология 7 класс, строение клетки" in presentation tab.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/generation/PresentationGenerateForm.tsx src/constants/generation.ts server/routes/presentations.ts
@@ -1256,13 +1256,13 @@ git commit -m "feat: free-text input for presentation generation"
 - Modify: `src/pages/SavedWorksheetPage.tsx` (verify)
 - Modify: `src/hooks/useWorksheetEditor.ts` (verify regeneration sends string subject)
 
-- [ ] **Step 1: Verify worksheet list pages handle string subjects**
+- [x] **Step 1: Verify worksheet list pages handle string subjects**
 
 In `src/pages/WorksheetsListPage.tsx` and `src/components/WorksheetManager.tsx`, the `getDisplayTitle` function calls `formatSubjectName(ws.subject)`. Since we updated `formatSubjectName` in Task 6, unknown subjects will pass through as-is. This is acceptable.
 
 No code change needed — just verify.
 
-- [ ] **Step 2: Verify regeneration sends correct subject type**
+- [x] **Step 2: Verify regeneration sends correct subject type**
 
 In `src/hooks/useWorksheetEditor.ts`, find where `handleRegenerateTask` builds the `context` object:
 
@@ -1277,7 +1277,7 @@ context: {
 
 Since `worksheet.subject` is now `string` (via updated WorksheetSchema), and RegenerateInputSchema now accepts `z.string()` (Task 5 Step 2), this works without changes.
 
-- [ ] **Step 3: Verify WorksheetPage session storage**
+- [x] **Step 3: Verify WorksheetPage session storage**
 
 In `src/pages/GeneratePage.tsx`, the session is saved with:
 ```typescript
@@ -1304,12 +1304,12 @@ saveSession(sessionId, {
 })
 ```
 
-- [ ] **Step 4: Run full test suite and build**
+- [x] **Step 4: Run full test suite and build**
 
 Run: `npm run test:run && npm run build`
 Expected: All tests pass, build succeeds with no TypeScript errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/pages/GeneratePage.tsx src/hooks/useWorksheetEditor.ts
@@ -1320,13 +1320,13 @@ git commit -m "fix: backward compatibility for string subjects in session storag
 
 ## Task 10: Smoke Test with New Subjects
 
-- [ ] **Step 1: Run dev server with DummyProvider**
+- [x] **Step 1: Run dev server with DummyProvider**
 
 ```bash
 AI_PROVIDER=dummy npm run dev
 ```
 
-- [ ] **Step 2: Test existing subjects work (regression)**
+- [x] **Step 2: Test existing subjects work (regression)**
 
 Open browser, type:
 - "Математика 3 класс, сложение двузначных чисел" -> Generate -> Should produce worksheet
@@ -1334,7 +1334,7 @@ Open browser, type:
 
 Verify: PDF downloads, task types display correctly, regeneration works.
 
-- [ ] **Step 3: Test new subjects (DummyProvider returns mock data)**
+- [x] **Step 3: Test new subjects (DummyProvider returns mock data)**
 
 Type:
 - "Физика 8 класс, сила трения" -> Generate
@@ -1342,7 +1342,7 @@ Type:
 
 Verify: Generation completes, worksheet displays, PDF downloads.
 
-- [ ] **Step 4: Test edge cases**
+- [x] **Step 4: Test edge cases**
 
 - Empty input -> Validation error message
 - Just "физика" (no grade) -> LLM fallback should determine grade, or error
@@ -1350,14 +1350,14 @@ Verify: Generation completes, worksheet displays, PDF downloads.
 - Very long input (500 chars) -> Should work
 - Cyrillic + numbers mixed -> Should parse correctly
 
-- [ ] **Step 5: Test saved worksheets list**
+- [x] **Step 5: Test saved worksheets list**
 
 Open "Мои листы" page. Verify:
 - Old worksheets (math, algebra etc.) display correctly
 - New subject worksheets display correctly with subject name
 - Regeneration works on saved worksheets
 
-- [ ] **Step 6: Final commit**
+- [x] **Step 6: Final commit**
 
 If any fixes were needed during testing, commit them.
 
