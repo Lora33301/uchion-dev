@@ -14,9 +14,6 @@ function IllustrationCabinet() {
         </svg>
         <span className="text-xs font-medium text-[#475569]">Личный кабинет</span>
       </div>
-      <svg className="w-5 h-5 text-[#8C52FF] opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-3-3m0 0l-3 3m3-3v6m6-11.5a4.5 4.5 0 0 0-9 0" />
-      </svg>
     </div>
   )
 }
@@ -284,8 +281,8 @@ export default function GenerationLoadingOverlay({ mode, progress }: GenerationL
         </div>
       </div>
 
-      {/* Tips carousel — fixed at bottom */}
-      <div className="px-4 pb-5 sm:px-6 sm:pb-6">
+      {/* Tips carousel — bottom area */}
+      <div className="px-4 pb-12 sm:px-6 sm:pb-16">
         <div className="mx-auto max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(140,82,255,0.12)] border border-[#ede9fe]">
           {/* Illustration area */}
           <div
