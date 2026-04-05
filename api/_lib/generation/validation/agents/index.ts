@@ -2,7 +2,7 @@ import { verifyAnswers } from './answer-verifier.js'
 import { checkQualityAndContent } from './unified-checker.js'
 import { checkDifficulty } from './difficulty-checker.js'
 import { fixTask, MAX_FIXES_PER_GENERATION, type FixResult } from './task-fixer.js'
-import { isStemSubject } from '../../../ai-models.js'
+import { usesLightweightVerification, getVerifierModelConfig, type VerifierModelConfig } from '../../../ai-models.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { DifficultyLevel } from '../../config/difficulty.js'
 
@@ -97,6 +97,12 @@ function collectTasksWithErrors(
     .sort((a, b) => a.taskIndex - b.taskIndex)
 }
 
+/** Model config for confirmation gate — always uses reasoning model.
+ *  Delegates to getVerifierModelConfig with a non-lightweight key to get gemini-3-flash. */
+function getConfirmationModelConfig(): VerifierModelConfig {
+  return getVerifierModelConfig('_confirmation_gate')
+}
+
 // =============================================================================
 // Orchestrator
 // =============================================================================
@@ -149,20 +155,44 @@ export async function runMultiAgentValidation(
   // Collect tasks with errors for fixing (difficulty warnings excluded)
   const tasksWithErrors = collectTasksWithErrors(answerResult, unifiedResult)
 
-  const stem = isStemSubject(params.subject)
+  const lightweight = usesLightweightVerification(params.subject)
 
   if (options.autoFix && tasksWithErrors.length > 0) {
-    // Non-STEM (russian etc.): skip fixer entirely — flash-lite creates false positives
-    if (!stem) {
-      console.log(`[УчиОн] Skipping task-fixer for non-STEM subject "${params.subject}", logging ${tasksWithErrors.length} issues only`)
-      for (const { taskIndex, issues } of tasksWithErrors) {
-        console.log(`[УчиОн] Task ${taskIndex} issue (not fixed): ${issues[0].code} — ${issues[0].message}`)
-      }
-    } else {
-      const toFix = tasksWithErrors.slice(0, MAX_FIXES_PER_GENERATION)
+    let confirmedErrors = tasksWithErrors
 
-      if (tasksWithErrors.length > MAX_FIXES_PER_GENERATION) {
-        console.log(`[УчиОн] Fixing ${toFix.length} of ${tasksWithErrors.length} tasks (limit: ${MAX_FIXES_PER_GENERATION})`)
+    // Confirmation gate for lightweight subjects:
+    // Re-verify errors with gemini-3-flash to filter flash-lite false positives
+    if (lightweight) {
+      console.log(`[УчиОн] Confirmation gate for "${params.subject}": re-verifying ${tasksWithErrors.length} flagged tasks with reasoning model`)
+
+      const errorTasksList = tasksWithErrors.map(({ taskIndex }) => tasks[taskIndex])
+      const confirmationModel = getConfirmationModelConfig()
+      const confirmation = await verifyAnswers(errorTasksList, params.subject, params.grade, confirmationModel)
+
+      // If confirmation agent failed (no real task results), skip the gate and fix all flagged errors
+      const hasRealResults = confirmation.tasks.some(t => t.taskIndex >= 0)
+      if (!hasRealResults) {
+        console.log(`[УчиОн] Confirmation gate returned no task results (agent may have failed), proceeding with all ${tasksWithErrors.length} flagged errors`)
+      } else {
+        confirmedErrors = []
+        for (let i = 0; i < tasksWithErrors.length; i++) {
+          const confirmResult = confirmation.tasks.find(t => t.taskIndex === i)
+          if (confirmResult?.status === 'error') {
+            confirmedErrors.push(tasksWithErrors[i])
+          } else {
+            console.log(`[УчиОн] Task ${tasksWithErrors[i].taskIndex} error not confirmed (false positive), skipping fix`)
+          }
+        }
+      }
+
+      console.log(`[УчиОн] Confirmation: ${confirmedErrors.length}/${tasksWithErrors.length} errors confirmed`)
+    }
+
+    if (confirmedErrors.length > 0) {
+      const toFix = confirmedErrors.slice(0, MAX_FIXES_PER_GENERATION)
+
+      if (confirmedErrors.length > MAX_FIXES_PER_GENERATION) {
+        console.log(`[УчиОн] Fixing ${toFix.length} of ${confirmedErrors.length} tasks (limit: ${MAX_FIXES_PER_GENERATION})`)
       } else {
         console.log(`[УчиОн] Fixing ${toFix.length} tasks with errors...`)
       }
@@ -190,25 +220,24 @@ export async function runMultiAgentValidation(
         }
       }
 
-      // Batch re-verification: verify ALL fixed tasks in a single call
-      // (was: one verifyAnswers() call per fixed task = up to 10 Gemini calls)
+      // Batch re-verification of fixed tasks
+      // For lightweight subjects, use reasoning model (consistent with confirmation gate)
       if (fixedTasksForReVerify.length > 0) {
         console.log(`[task-fixer] Batch re-verifying ${fixedTasksForReVerify.length} fixed tasks...`)
 
         const tasksToVerify = fixedTasksForReVerify.map(f => f.task)
-        const reVerification = await verifyAnswers(tasksToVerify, params.subject, params.grade)
+        const reVerifyModel = lightweight ? getConfirmationModelConfig() : undefined
+        const reVerification = await verifyAnswers(tasksToVerify, params.subject, params.grade, reVerifyModel)
 
         let reVerifyPassed = 0
         let reVerifyReverted = 0
 
         for (let i = 0; i < fixedTasksForReVerify.length; i++) {
           const { originalIndex, task, fixResultIndex } = fixedTasksForReVerify[i]
-          // Find the result for this task (by index in the batch)
           const taskReVerify = reVerification.tasks.find(t => t.taskIndex === i)
           const hasErrors = taskReVerify?.status === 'error'
 
           if (hasErrors) {
-            // Revert to original — fix introduced new errors
             fixResults[fixResultIndex].success = false
             fixResults[fixResultIndex].error = 're-verification failed, reverted to original'
             reVerifyReverted++
@@ -222,6 +251,8 @@ export async function runMultiAgentValidation(
 
         console.log(`[task-fixer] Re-verification: ${reVerifyPassed}/${fixedTasksForReVerify.length} passed, ${reVerifyReverted} reverted`)
       }
+    } else if (lightweight) {
+      console.log(`[УчиОн] All ${tasksWithErrors.length} errors were false positives, no fixes needed`)
     }
   }
 

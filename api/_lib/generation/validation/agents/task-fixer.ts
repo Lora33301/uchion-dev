@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { getFixerModelConfig } from '../../../ai-models.js'
 import { trackFromContext } from '../../../ai-usage.js'
 import { safeJsonParse } from './safe-json-parse.js'
+import { KNOWN_SUBJECT_NAMES } from '../../parse-prompt.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { DifficultyLevel } from '../../config/difficulty.js'
 import { difficultyLevels } from '../../config/difficulty.js'
@@ -57,7 +58,7 @@ export async function fixTask(
   }
 
   const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) })
-  const subjectName = SUBJECT_NAMES[context.subject] || context.subject
+  const subjectName = SUBJECT_NAMES[context.subject] || KNOWN_SUBJECT_NAMES[context.subject] || context.subject
 
   const suggestionLine = issue.suggestion
     ? `\nРЕКОМЕНДАЦИЯ: ${issue.suggestion}`

@@ -4,6 +4,8 @@ import { trackFromContext } from '../../../ai-usage.js'
 import { safeJsonParse } from './safe-json-parse.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { AgentResult, AgentTaskResult, AgentIssue } from './index.js'
+import { KNOWN_SUBJECT_NAMES } from '../../parse-prompt.js'
+import type { VerifierModelConfig } from '../../../ai-models.js'
 
 // Same shape as in ai-provider.ts / deterministic.ts
 interface GeneratedTask {
@@ -68,6 +70,21 @@ ${DISTRACTOR_CHECK}`,
 ${DISTRACTOR_CHECK}`,
 }
 
+function getVerifierPrompt(subject: string): string {
+  if (SUBJECT_PROMPTS[subject]) return SUBJECT_PROMPTS[subject]
+
+  const subjectName = KNOWN_SUBJECT_NAMES[subject] || subject
+  return `Ты -- проверяющий учитель предмета "${subjectName}".
+Для каждого задания:
+1. Используя свои знания по предмету "${subjectName}", реши задание самостоятельно
+2. Сравни свой ответ с указанным
+3. Если не совпадают -- укажи ошибку и правильный ответ
+4. Для фактических вопросов: проверь точность фактов, дат, определений
+5. Для вычислительных задач: выполни расчёты и сравни результат
+
+${DISTRACTOR_CHECK}`
+}
+
 function formatTaskForPrompt(task: GeneratedTask, index: number): string {
   const parts = [`--- Задание ${index} (тип: ${task.type}) ---`]
 
@@ -111,14 +128,15 @@ interface LLMTaskResult {
 export async function verifyAnswers(
   tasks: GeneratedTask[],
   subject: string,
-  grade?: number
+  grade?: number,
+  modelConfig?: VerifierModelConfig
 ): Promise<AgentResult> {
   const agentName = 'answer-verifier'
   const start = Date.now()
 
   const apiKey = process.env.OPENAI_API_KEY
   const baseURL = process.env.AI_BASE_URL
-  const { model, reasoning } = getVerifierModelConfig(subject, grade)
+  const { model, reasoning } = modelConfig ?? getVerifierModelConfig(subject, grade)
   console.log(`[${agentName}] Verifier model: ${model}, reasoning:`, JSON.stringify(reasoning))
 
   if (!apiKey) {
@@ -127,7 +145,7 @@ export async function verifyAnswers(
   }
 
   const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) })
-  const subjectPrompt = SUBJECT_PROMPTS[subject] || SUBJECT_PROMPTS.math
+  const subjectPrompt = getVerifierPrompt(subject)
 
   const tasksText = tasks.map((t, i) => formatTaskForPrompt(t, i)).join('\n\n')
 

@@ -57,15 +57,19 @@ Each format has 3 variants (basic / pro / pro+), costing 1/2/3 generations.
 
 When subscription expires, user goes back to free model. `hasPaidAccess` is set only for one-time generation pack purchases (NOT subscriptions), so it persists independently.
 | Validation agents (unified-checker, difficulty-checker) | `openai/gpt-4.1-mini` | `AI_MODEL_AGENTS` |
-| Verifier (STEM, all grades) | `google/gemini-3-flash-preview` (reasoning: low) | `AI_MODEL_VERIFIER_STEM` |
-| Verifier (humanities, all grades) | `google/gemini-2.5-flash-lite` (reasoning: off) | `AI_MODEL_VERIFIER_HUMANITIES` |
-| Fixer (STEM) | `google/gemini-3-flash-preview` (reasoning: minimal) | -- |
-| Fixer (other) | same as verifier for that subject | -- |
+| Verifier (reasoning subjects) | `google/gemini-3-flash-preview` (reasoning: low) | `AI_MODEL_VERIFIER_STEM` |
+| Verifier (humanities/language) | `google/gemini-2.5-flash-lite` (reasoning: off) | `AI_MODEL_VERIFIER_HUMANITIES` |
+| Fixer (reasoning subjects) | `google/gemini-3-flash-preview` (reasoning: minimal) | -- |
+| Fixer (humanities/language) | same as verifier (flash-lite, no reasoning) | -- |
 | Presentations | `anthropic/claude-sonnet-4.5` | `AI_MODEL_PRESENTATION` |
 
-**Unified verification**: All grades (1-11) use Gemini for verification. STEM uses gemini-3-flash (reasoning), humanities uses gemini-2.5-flash-lite.
+**Subject classification for verification:**
+- **Reasoning subjects** (STEM + natural science + unknown): math, algebra, geometry, physics, chemistry, biology, informatics, geography, and any unknown subject → gemini-3-flash with reasoning
+- **Lightweight subjects** (humanities/language): russian, literature, history, social_studies, english, music, obzh → gemini-2.5-flash-lite + confirmation gate
 
-**STEM subjects**: math, algebra, geometry.
+**STEM subjects** (for `isStemSubject()`): math, algebra, geometry — kept for backward compat.
+
+Unknown/new subjects default to reasoning model (safer — better to over-verify than miss errors).
 
 **Do NOT use** reasoning models (5-10x more expensive): `openai/gpt-5-mini`, `openai/o1`, `openai/o3` -- they generate unnecessary reasoning tokens.
 
@@ -125,9 +129,10 @@ When subscription expires, user goes back to free model. `hasPaidAccess` is set 
 
 - **`deterministic.ts`** -- Deterministic validation (counts, formats, structure)
 
-### Non-STEM behavior
+### Fixer behavior by subject category
 
-For non-STEM subjects (russian), the **task-fixer is skipped** -- flash-lite creates false positives. Errors are logged only.
+- **Reasoning subjects** (math, algebra, geometry, physics, chemistry, biology, informatics, geography, unknown): Fixer enabled directly, uses gemini-3-flash with reasoning:minimal.
+- **Lightweight subjects** (russian, literature, history, etc.): Fixer enabled **via confirmation gate** — flash-lite flags errors, then gemini-3-flash re-verifies only flagged tasks. Only confirmed errors go to fixer. If confirmation gate API fails, all flagged errors proceed to fixer (safe fallback). Re-verification after fix also uses gemini-3-flash.
 
 ### Legacy files (not used in orchestrator)
 
