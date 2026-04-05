@@ -173,7 +173,7 @@ Production: same vars, different secrets. Deploy via Dokploy on VPS (port 3000).
 5. **Prodamus webhooks** -- `_param_*` fields NOT forwarded in subscription webhooks; userId resolved via email fallback chain
 6. **Drizzle ORM** -- use `error.cause.code` for PG error codes (wrapped errors), not `error.code`
 7. **Token limit** -- `max_tokens: 16000` for generation, NOT 8000
-8. **Unified verification** -- all grades (1-11) use Gemini for verification: STEM uses gemini-3-flash (reasoning), humanities uses gemini-2.5-flash-lite
+8. **Unified verification** -- all grades (1-11) use Gemini: reasoning subjects (STEM + natural science + unknown) use gemini-3-flash, humanities/language use gemini-2.5-flash-lite + confirmation gate (re-verify errors with gemini-3-flash before fixer). Classification via `usesLightweightVerification()` in `ai-models.ts`.
 9. **Paid model logic** -- `isPaid = planConfig.paidModel || user.hasPaidAccess || admin`. Subscriptions use `planConfig.paidModel` (resets on expiry). Generation pack purchases set `users.hasPaidAccess` (sticky). Do NOT set `hasPaidAccess` for subscriptions.
 
 ## See Also
