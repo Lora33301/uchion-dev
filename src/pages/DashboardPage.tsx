@@ -346,10 +346,10 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-semibold text-slate-900">Нужна помощь?</p>
-                <p className="text-sm text-slate-500">Напишите нам в Telegram</p>
+                <p className="text-sm text-slate-500">Напишите нам в VK</p>
               </div>
               <a
-                href="https://t.me/mama_umnivera"
+                href="https://vk.ru/ychion_ru"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-medium text-sm transition-colors"
