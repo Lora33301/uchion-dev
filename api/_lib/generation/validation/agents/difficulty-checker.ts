@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { getAgentsModel } from '../../../ai-models.js'
 import { trackFromContext } from '../../../ai-usage.js'
 import { safeJsonParse } from './safe-json-parse.js'
+import { KNOWN_SUBJECT_NAMES } from '../../parse-prompt.js'
 import type { TaskTypeId } from '../../config/task-types.js'
 import type { DifficultyLevel } from '../../config/difficulty.js'
 import type { AgentResult, AgentTaskResult, AgentIssue } from './index.js'
@@ -96,7 +97,7 @@ export async function checkDifficulty(
 
   const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) })
   const difficultyName = DIFFICULTY_NAMES[difficulty] || difficulty
-  const subjectName = SUBJECT_NAMES[subject] || subject
+  const subjectName = SUBJECT_NAMES[subject] || KNOWN_SUBJECT_NAMES[subject] || subject
 
   const tasksText = tasks.map((t, i) => formatTaskForPrompt(t, i)).join('\n\n')
 
