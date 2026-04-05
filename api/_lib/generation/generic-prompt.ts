@@ -22,7 +22,7 @@ export function buildGenericPromptConfig(subjectId: string): SubjectPromptConfig
 - Используй терминологию и понятия, принятые в российских учебниках
 - Формулировки должны быть понятны ученику указанного класса
 - Ответы должны быть однозначными и проверяемыми
-- Все задания на русском языке`,
+- По умолчанию задания на русском языке (если в пожеланиях учителя не указано иное)`,
 
     contentRequirements: (grade: number, level: DifficultyLevel): string => {
       const levelRu = level === 'easy' ? 'базовый' : level === 'medium' ? 'средний' : 'повышенный'
