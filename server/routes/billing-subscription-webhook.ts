@@ -425,6 +425,23 @@ export async function handleSubscriptionWebhook(
   // ==================== RESOLVE USER ID ====================
   const { userId, planFromParam } = await resolveSubscriptionUserId(payload)
 
+  // CRITICAL: Validate userId BEFORE marking idempotency.
+  // If we mark first and then fail to resolve, the event gets permanently stuck
+  // ("idempotency poisoning") — Prodamus gets 200, won't retry, intent stays 'created'.
+  if (!userId) {
+    const customerEmail = payload.customer_email as string | undefined
+    const customerPhone = payload.customer_phone as string | undefined
+    console.error(`[Subscription Webhook] Cannot resolve userId — returning 500 for Prodamus retry. email=${customerEmail}, phone=${customerPhone}, profileId=${prodamusProfileId}, subId=${prodamusSubId}`)
+
+    sendAdminAlert({
+      message: `Webhook подписки: userId не найден!\nemail=${customerEmail}\nphone=${customerPhone}\nprofileId=${prodamusProfileId}\nsubId=${prodamusSubId}\nstatus=${paymentStatus}\nautopay=${isAutopayment}\n\nProdamus получит 500 и повторит попытку.`,
+      level: 'warning',
+    }).catch(() => {})
+
+    // Return 500 so Prodamus retries (userId might become resolvable after DB sync/fix)
+    return res.status(500).json({ status: 'user_resolution_failed' })
+  }
+
   // Build idempotency key using subscription ID + payment_num + status
   const paymentNum = sub.payment_num || '0'
   const eventKey = `sub:${prodamusSubId}:${paymentNum}:${paymentStatus}`
@@ -466,23 +483,18 @@ async function processSubscriptionEvent(
 ): Promise<Response> {
   console.log(`[Subscription Webhook] Event: status=${paymentStatus}, autopayment=${isAutopayment}, active_user=${sub.active_user}, active_manager=${sub.active_manager}, payment_num=${sub.payment_num}, subId=${prodamusSubId}, profileId=${prodamusProfileId}, user=${userId}`)
 
-  // Validate userId resolved
-  if (!userId) {
-    const customerEmail = payload.customer_email as string | undefined
-    const customerPhone = payload.customer_phone as string | undefined
-    console.error(`[Subscription Webhook] Cannot resolve userId. email=${customerEmail}, phone=${customerPhone}, profileId=${prodamusProfileId}, subId=${prodamusSubId}`)
-    return res.status(200).json({ status: 'missing_user_id' })
-  }
+  // userId already validated in handleSubscriptionWebhook before idempotency mark
 
   const [user] = await db
     .select({ id: users.id, email: users.email })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(eq(users.id, userId!))
     .limit(1)
 
   if (!user) {
-    console.error(`[Subscription Webhook] User not found: ${userId}`)
-    return res.status(200).json({ status: 'user_not_found' })
+    console.error(`[Subscription Webhook] User not found in DB: ${userId}`)
+    // Throw so the catch block in handleSubscriptionWebhook unmarks the event for retry
+    throw new Error(`Subscription webhook: user ${userId} not found in DB`)
   }
 
   // Mark subscription intent as paid (if one exists)

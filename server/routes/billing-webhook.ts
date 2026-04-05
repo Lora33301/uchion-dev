@@ -5,12 +5,14 @@ import { paymentIntents } from '../../db/schema.js'
 import { verifyWebhookSignature } from '../lib/prodamus.js'
 import { applyProductEffect } from '../lib/billing-effects.js'
 import { checkBillingWebhookRateLimit, getClientIp } from '../middleware/rate-limit.js'
+import { sendAdminAlert } from '../../api/_lib/telegram/bot.js'
 import {
   PRODAMUS_SECRET,
   type ProdamusWebhookPayload,
   generateOrderId,
   hashPayload,
   tryMarkEventProcessed,
+  tryUnmarkEventProcessed,
   APP_URL,
 } from './billing-helpers.js'
 import { handleSubscriptionWebhook } from './billing-subscription-webhook.js'
@@ -35,15 +37,19 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
   }
 
   try {
-    console.log(`[Prodamus Webhook] Received from IP: ${ip}`)
+    const contentType = req.headers['content-type'] || 'unknown'
+    console.log(`[Prodamus Webhook] Received from IP: ${ip}, content-type: ${contentType}`)
 
     // Parse payload
     let payload: ProdamusWebhookPayload
-    if (typeof req.body === 'object') {
+    if (typeof req.body === 'object' && req.body !== null) {
       payload = req.body
     } else {
+      console.error(`[Prodamus Webhook] Invalid payload: type=${typeof req.body}, body=${String(req.body).slice(0, 200)}`)
       return res.status(400).json({ error: 'Invalid payload format' })
     }
+
+    console.log(`[Prodamus Webhook] Payload keys: ${Object.keys(payload).join(', ')}`)
 
     // Get signature from request
     // Prodamus sends Sign header in format "Sign: <hash>" — strip the prefix
@@ -64,7 +70,7 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
       const { sign: _sign, ...payloadWithoutSign } = payload
 
       if (!verifyWebhookSignature(payloadWithoutSign as Record<string, unknown>, signature, PRODAMUS_SECRET)) {
-        console.warn(`[Prodamus Webhook] Invalid signature from IP: ${ip}`)
+        console.warn(`[Prodamus Webhook] Invalid signature from IP: ${ip}, has_sign_field: ${!!payload.sign}, has_sign_header: ${!!req.headers['sign']}, payload_keys: ${Object.keys(payload).join(',')}`)
         return res.status(400).json({ error: 'Invalid signature' })
       }
     }
@@ -81,7 +87,7 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
     // Get order_id (Prodamus may send it as order_id or order_num)
     const orderId = payload.order_id || payload.order_num
     if (!orderId) {
-      console.error('[Prodamus Webhook] Missing order_id')
+      console.error('[Prodamus Webhook] Missing order_id in payload. Keys:', Object.keys(payload).join(', '))
       return res.status(400).json({ error: 'Missing order_id' })
     }
 
@@ -91,14 +97,8 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
     const rawBody = JSON.stringify(payload)
     const payloadHash = hashPayload(rawBody)
 
-    // Atomic idempotency check - prevents race conditions
-    const isFirstProcessing = await tryMarkEventProcessed('prodamus', eventKey, payloadHash)
-    if (!isFirstProcessing) {
-      console.log(`[Prodamus Webhook] Event already processed: ${eventKey}`)
-      return res.status(200).json({ status: 'already_processed' })
-    }
-
-    // Find payment intent
+    // Find payment intent BEFORE marking idempotency — avoids "idempotency poisoning"
+    // where a failed lookup permanently blocks retries
     const [paymentIntent] = await db
       .select({
         id: paymentIntents.id,
@@ -111,11 +111,12 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
       .limit(1)
 
     if (!paymentIntent) {
-      console.warn(`[Prodamus Webhook] Unknown order_id: ${orderId}`)
-      return res.status(200).json({ status: 'unknown_order' })
+      console.warn(`[Prodamus Webhook] Unknown order_id: ${orderId} — returning 500 for retry`)
+      // Return 500 so Prodamus retries (intent might appear after DB replication/timing)
+      return res.status(500).json({ status: 'unknown_order' })
     }
 
-    // Check if already paid (additional protection)
+    // Check if already paid (no need for idempotency check — this IS the idempotency)
     if (paymentIntent.status === 'paid') {
       console.log(`[Prodamus Webhook] Payment already processed: ${orderId}`)
       return res.status(200).json({ status: 'already_paid' })
@@ -141,30 +142,48 @@ export async function handleProdamusWebhook(req: Request, res: Response): Promis
       return res.status(200).json({ status: 'noted' })
     }
 
-    // Process successful payment
-    console.log(`[Prodamus Webhook] Processing successful payment for order: ${orderId}`)
-
-    // Update payment intent
-    await db
-      .update(paymentIntents)
-      .set({
-        status: 'paid',
-        paidAt: new Date(),
-      })
-      .where(eq(paymentIntents.id, paymentIntent.id))
-
-    // Apply product effect
-    const effectResult = await applyProductEffect(
-      paymentIntent.userId,
-      paymentIntent.productCode
-    )
-
-    if (!effectResult.success) {
-      console.error(`[Prodamus Webhook] Failed to apply effect: ${effectResult.message}`)
+    // Atomic idempotency check — only for success payments (which mutate state)
+    const isFirstProcessing = await tryMarkEventProcessed('prodamus', eventKey, payloadHash)
+    if (!isFirstProcessing) {
+      console.log(`[Prodamus Webhook] Event already processed: ${eventKey}`)
+      return res.status(200).json({ status: 'already_processed' })
     }
 
-    console.log(`[Prodamus Webhook] Successfully processed payment for order: ${orderId}`)
-    return res.status(200).json({ status: 'processed' })
+    // Process successful payment — wrapped in try/catch to unmark on failure
+    try {
+      console.log(`[Prodamus Webhook] Processing successful payment for order: ${orderId}`)
+
+      // Update payment intent
+      await db
+        .update(paymentIntents)
+        .set({
+          status: 'paid',
+          paidAt: new Date(),
+        })
+        .where(eq(paymentIntents.id, paymentIntent.id))
+
+      // Apply product effect
+      const effectResult = await applyProductEffect(
+        paymentIntent.userId,
+        paymentIntent.productCode
+      )
+
+      if (!effectResult.success) {
+        console.error(`[Prodamus Webhook] Failed to apply effect: ${effectResult.message}`)
+        // Effect failed but intent is already 'paid' — alert admin for manual intervention
+        sendAdminAlert({
+          message: `Webhook: оплата зачтена, но эффект НЕ применён!\norder_id: ${orderId}\nproductCode: ${paymentIntent.productCode}\nuserId: ${paymentIntent.userId}\nОшибка: ${effectResult.message}`,
+          level: 'warning',
+        }).catch(() => {})
+      }
+
+      console.log(`[Prodamus Webhook] Successfully processed payment for order: ${orderId}`)
+      return res.status(200).json({ status: 'processed' })
+    } catch (processingError) {
+      // Unmark event so Prodamus can retry
+      await tryUnmarkEventProcessed('prodamus', eventKey)
+      throw processingError
+    }
 
   } catch (error) {
     console.error('[Prodamus Webhook] Processing error:', error)
