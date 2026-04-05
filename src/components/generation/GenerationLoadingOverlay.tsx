@@ -268,9 +268,8 @@ export default function GenerationLoadingOverlay({ mode, progress }: GenerationL
         <div className="mx-auto mb-6 h-14 w-14 animate-spin rounded-full border-4 border-slate-200 border-t-[#8C52FF]" />
 
         <div className="w-full max-w-md px-6">
-          <div className="mb-2 flex justify-between items-end text-sm font-medium">
-            <span className="text-slate-600">Готово: {Math.round(progress)}%</span>
-            <span className="text-xs text-slate-400">Генерация длится в среднем 2-3 минуты</span>
+          <div className="mb-2 text-center text-sm font-medium text-slate-600">
+            Готово: {Math.round(progress)}%
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner">
             <div
