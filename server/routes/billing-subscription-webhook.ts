@@ -442,11 +442,27 @@ export async function handleSubscriptionWebhook(
     return res.status(500).json({ status: 'user_resolution_failed' })
   }
 
-  // Build idempotency key using subscription ID + payment_num + status
+  // Build idempotency key using subscription ID + profile ID + payment_num + status.
+  // CRITICAL: prodamusSubId is the Prodamus PRODUCT ID (same for every user on the same plan),
+  // so it alone is NOT user-specific. Without profile_id, user B's first payment for the same
+  // plan collides with user A's (key "sub:<productId>:1:success") and gets silently dropped as
+  // "already processed" — no subscription activation. profile_id is unique per user subscription
+  // instance and MUST be included to make the key user-specific.
   const paymentNum = sub.payment_num || '0'
-  const eventKey = `sub:${prodamusSubId}:${paymentNum}:${paymentStatus}`
+  const eventKey = `sub:${prodamusSubId}:${prodamusProfileId}:${paymentNum}:${paymentStatus}`
   const rawBody = JSON.stringify(payload)
   const payloadHash = hashPayload(rawBody)
+
+  if (!prodamusProfileId) {
+    // Shouldn't happen for real Prodamus subscription webhooks — alert and continue
+    // (empty profile_id in the key still scopes per-event within the {subId,paymentNum,status}
+    // triple but loses cross-user isolation). We log so admins can investigate.
+    console.warn(`[Subscription Webhook] Missing profile_id in subscription payload! subId=${prodamusSubId}, paymentNum=${paymentNum}, status=${paymentStatus}`)
+    sendAdminAlert({
+      message: `Webhook подписки без profile_id!\nsubId=${prodamusSubId}\npaymentNum=${paymentNum}\nstatus=${paymentStatus}\nemail=${payload.customer_email}\nЭто может привести к коллизии idempotency ключей — проверьте Prodamus.`,
+      level: 'warning',
+    }).catch(() => {})
+  }
 
   const isFirstProcessing = await tryMarkEventProcessed('prodamus_subscription', eventKey, payloadHash)
   if (!isFirstProcessing) {
