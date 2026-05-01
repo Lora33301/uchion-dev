@@ -9,6 +9,7 @@ import { ApiError } from '../../middleware/error-handler.js'
 import { requireRateLimit } from '../../middleware/rate-limit.js'
 import { revokeAllUserTokens } from '../../../api/_lib/auth/tokens.js'
 import { invalidateUserCache } from '../../lib/user-cache.js'
+import { generateReferralCode } from '../../lib/referral.js'
 import type { AuthenticatedRequest } from '../../types.js'
 
 /** Escape LIKE special characters to prevent wildcard injection */
@@ -182,6 +183,9 @@ router.get('/:id', withAdminAuth(async (req: AuthenticatedRequest, res: Response
       provider: users.provider,
       providerId: users.providerId,
       generationsLeft: users.generationsLeft,
+      referralCode: users.referralCode,
+      referredBy: users.referredBy,
+      referredAt: users.referredAt,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       deletedAt: users.deletedAt,
@@ -193,6 +197,12 @@ router.get('/:id', withAdminAuth(async (req: AuthenticatedRequest, res: Response
   if (!user) {
     throw ApiError.notFound('User not found')
   }
+
+  // Count of users this user has referred (only relevant if they're an ambassador)
+  const [referralsCountResult] = await db
+    .select({ count: count() })
+    .from(users)
+    .where(and(eq(users.referredBy, id), isNull(users.deletedAt)))
 
   const [subscription] = await db
     .select({
@@ -263,9 +273,166 @@ router.get('/:id', withAdminAuth(async (req: AuthenticatedRequest, res: Response
       subscription: subscription || { plan: 'free', status: 'active', expiresAt: null },
       generationsCount: totalGenerations,
       worksheetsCount: worksheetsCountResult.count,
+      referralsCount: referralsCountResult.count,
     },
     generations: userGenerations,
     worksheets: userWorksheets,
+  })
+}))
+
+// ==================== POST /api/admin/users/:id/referral-code ====================
+// Generates a referral code for a specific user (or returns the existing one).
+// Idempotent: doesn't overwrite an existing code -- old links must keep working.
+router.post('/:id/referral-code', withAdminAuth(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params
+
+  if (!id || !uuidRegex.test(id)) {
+    throw ApiError.badRequest('Invalid user ID format')
+  }
+
+  await requireRateLimit(req, {
+    maxRequests: 20,
+    windowSeconds: 60,
+    identifier: `admin:referral-code:${req.user.id}`,
+  })
+
+  const [target] = await db
+    .select({ id: users.id, referralCode: users.referralCode, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
+
+  if (!target) {
+    throw ApiError.notFound('User not found')
+  }
+  if (target.deletedAt) {
+    throw ApiError.badRequest('Cannot generate code for a blocked user')
+  }
+  if (target.referralCode) {
+    return res.status(200).json({ referralCode: target.referralCode, created: false })
+  }
+
+  // Insert with retry on the rare collision (8-char base32 of 31 chars = ~31^8 space)
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generateReferralCode(8)
+    try {
+      const [updated] = await db
+        .update(users)
+        .set({ referralCode: candidate, updatedAt: new Date() })
+        .where(and(eq(users.id, id), isNull(users.referralCode)))
+        .returning({ referralCode: users.referralCode })
+      if (updated?.referralCode) {
+        console.log(`[Admin] Referral code generated for user ${id} by admin ${req.user.id}`)
+        return res.status(200).json({ referralCode: updated.referralCode, created: true })
+      }
+      // Code already set in a race -- fetch and return it
+      const [refetched] = await db
+        .select({ referralCode: users.referralCode })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1)
+      if (refetched?.referralCode) {
+        return res.status(200).json({ referralCode: refetched.referralCode, created: false })
+      }
+    } catch (err) {
+      lastErr = err
+      // Unique violation -- try a new code
+      const code = (err as { cause?: { code?: string } })?.cause?.code
+      if (code !== '23505') throw err
+    }
+  }
+  console.error('[Admin] Failed to allocate referral code after retries', lastErr)
+  throw ApiError.internal('Failed to generate unique referral code')
+}))
+
+// ==================== GET /api/admin/users/:id/referrals ====================
+// Returns the list of users invited by :id, with attribution metadata
+// and a heuristic "suspicious" flag for fraud review.
+router.get('/:id/referrals', withAdminAuth(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params
+
+  if (!id || !uuidRegex.test(id)) {
+    throw ApiError.badRequest('Invalid user ID format')
+  }
+
+  await requireRateLimit(req, {
+    maxRequests: 60,
+    windowSeconds: 60,
+    identifier: `admin:referrals:${req.user.id}`,
+  })
+
+  // Fetch the referrer's own row to compute "same IP as referrer" suspicion.
+  const [referrer] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      referralCode: users.referralCode,
+      referredIp: users.referredIp,
+    })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
+
+  if (!referrer) {
+    throw ApiError.notFound('User not found')
+  }
+
+  const invited = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      subscriptionPlan: users.subscriptionPlan,
+      hasPaidAccess: users.hasPaidAccess,
+      referredAt: users.referredAt,
+      referredIp: users.referredIp,
+      referredEmailNorm: users.referredEmailNorm,
+      createdAt: users.createdAt,
+      deletedAt: users.deletedAt,
+    })
+    .from(users)
+    .where(eq(users.referredBy, id))
+    .orderBy(desc(users.referredAt))
+    .limit(500)
+
+  // Detect duplicate normalized emails within this referrer's pool
+  const normCounts = new Map<string, number>()
+  for (const row of invited) {
+    if (!row.referredEmailNorm) continue
+    normCounts.set(row.referredEmailNorm, (normCounts.get(row.referredEmailNorm) ?? 0) + 1)
+  }
+
+  const referrals = invited.map((row) => {
+    const flags: string[] = []
+    if (referrer.referredIp && row.referredIp && row.referredIp === referrer.referredIp) {
+      flags.push('same_ip_as_referrer')
+    }
+    if (row.referredEmailNorm && (normCounts.get(row.referredEmailNorm) ?? 0) > 1) {
+      flags.push('duplicate_normalized_email')
+    }
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      subscriptionPlan: row.subscriptionPlan,
+      hasPaidAccess: row.hasPaidAccess,
+      referredAt: row.referredAt,
+      referredIp: row.referredIp,
+      registeredAt: row.createdAt,
+      isBlocked: row.deletedAt !== null,
+      suspicious: flags.length > 0,
+      flags,
+    }
+  })
+
+  const paidCount = referrals.filter((r) => r.subscriptionPlan && r.subscriptionPlan !== 'free').length
+
+  return res.status(200).json({
+    referralCode: referrer.referralCode,
+    total: referrals.length,
+    paidCount,
+    referrals,
   })
 }))
 

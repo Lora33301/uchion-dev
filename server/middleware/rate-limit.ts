@@ -204,6 +204,16 @@ export async function checkBillingCreateLinkRateLimit(
   return consumeLimit(limiter, userId)
 }
 
+/**
+ * Limit how many times a single IP can register a referred account.
+ * 3 referred signups per 24h per IP -- keeps a single accomplice from
+ * inflating an ambassador's count from one machine.
+ */
+export async function checkReferralSignupRateLimit(req: Request): Promise<RateLimitResult> {
+  const limiter = createLimiter('rl:ref:signup', 3, 24 * 60 * 60)
+  return consumeLimit(limiter, getClientIp(req))
+}
+
 export async function checkBillingWebhookRateLimit(req: Request): Promise<RateLimitResult> {
   const limiter = createLimiter('rl:bill:wh', 100, 60)
   return consumeLimit(limiter, getClientIp(req))

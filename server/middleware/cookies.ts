@@ -153,3 +153,39 @@ export function getMailingConsentCookie(req: Request): boolean {
 export function clearMailingConsentCookie(res: Response): void {
   clearCookie(res, MAILING_CONSENT_COOKIE, OAUTH_COOKIE_PATH)
 }
+
+// ==================== REFERRAL COOKIE ====================
+// Captures `?ref=CODE` so we can attribute the eventual signup
+// to the ambassador who shared the link.
+
+export const REFERRAL_COOKIE = 'uchion_ref'
+const REFERRAL_COOKIE_MAX_AGE = 90 * 24 * 60 * 60 // 90 days
+
+/**
+ * Server-side referral cookie write (path=/ , NOT httpOnly so the SPA can also
+ * read/write it before any auth round-trip).
+ */
+export function setReferralCookie(res: Response, code: string): void {
+  const isProduction = process.env.NODE_ENV === 'production'
+  res.cookie(REFERRAL_COOKIE, code, {
+    httpOnly: false,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: REFERRAL_COOKIE_MAX_AGE * 1000,
+  })
+}
+
+export function getReferralCookie(req: Request): string | null {
+  return getTokenFromCookie(req, REFERRAL_COOKIE)
+}
+
+export function clearReferralCookie(res: Response): void {
+  const isProduction = process.env.NODE_ENV === 'production'
+  res.clearCookie(REFERRAL_COOKIE, {
+    httpOnly: false,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+  })
+}

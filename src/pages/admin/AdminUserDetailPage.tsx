@@ -5,6 +5,8 @@ import {
   fetchAdminUserDetail,
   blockUser,
   unblockUser,
+  generateReferralCode,
+  fetchUserReferrals,
   formatProviderName,
   formatRoleName,
   formatGenerationStatus,
@@ -90,6 +92,40 @@ export default function AdminUserDetailPage() {
       setActionError(err.message)
     },
   })
+
+  const referralsQuery = useQuery({
+    queryKey: ['admin-user-referrals', id],
+    queryFn: () => fetchUserReferrals(id!),
+    enabled: !!id,
+  })
+
+  const generateCodeMutation = useMutation({
+    mutationFn: () => generateReferralCode(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-user-referrals', id] })
+      setActionError(null)
+    },
+    onError: (err: Error) => {
+      setActionError(err.message)
+    },
+  })
+
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
+  const buildReferralUrl = (code: string): string => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    return `${origin}/?ref=${code}`
+  }
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyFeedback('Скопировано')
+      setTimeout(() => setCopyFeedback(null), 1500)
+    } catch {
+      setCopyFeedback('Не удалось скопировать')
+      setTimeout(() => setCopyFeedback(null), 1500)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -261,6 +297,148 @@ export default function AdminUserDetailPage() {
         <div className="glass-container p-5">
           <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Последнее обновление</p>
           <p className="text-sm font-medium text-slate-900">{formatDateTime(user.updatedAt)}</p>
+        </div>
+      </div>
+
+      {/* Referral / ambassador block */}
+      <div className="glass-container overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-amber-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Реферальная программа</h3>
+            {user.referralCode && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                Амбассадор
+              </span>
+            )}
+          </div>
+          {copyFeedback && (
+            <span className="text-xs text-emerald-600 font-medium">{copyFeedback}</span>
+          )}
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Code area */}
+          {user.referralCode ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Реферальный код</p>
+                <div className="flex items-center gap-2">
+                  <code className="font-mono text-lg font-bold text-slate-900 px-3 py-1.5 bg-slate-100 rounded-lg">
+                    {user.referralCode}
+                  </code>
+                  <button
+                    onClick={() => copyText(user.referralCode!)}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 transition-colors"
+                  >
+                    Копировать
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Ссылка для амбассадора</p>
+                <div className="flex items-center gap-2">
+                  <code className="font-mono text-xs text-slate-600 px-3 py-1.5 bg-slate-100 rounded-lg flex-1 truncate">
+                    {buildReferralUrl(user.referralCode)}
+                  </code>
+                  <button
+                    onClick={() => copyText(buildReferralUrl(user.referralCode!))}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 transition-colors whitespace-nowrap"
+                  >
+                    Копировать
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl">
+              <div>
+                <p className="text-sm font-medium text-slate-900 mb-0.5">У пользователя нет реферального кода</p>
+                <p className="text-xs text-slate-500">Сгенерируйте код, чтобы он мог приглашать новых пользователей по своей ссылке.</p>
+              </div>
+              <button
+                onClick={() => generateCodeMutation.mutate()}
+                disabled={generateCodeMutation.isPending || user.isBlocked}
+                className="px-4 py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {generateCodeMutation.isPending ? 'Создаём...' : 'Создать код'}
+              </button>
+            </div>
+          )}
+
+          {/* Stats + invited list */}
+          {user.referralCode && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Всего привлечено</p>
+                  <p className="text-2xl font-bold text-slate-900">{referralsQuery.data?.total ?? user.referralsCount ?? 0}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">С платным тарифом</p>
+                  <p className="text-2xl font-bold text-slate-900">{referralsQuery.data?.paidCount ?? 0}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-3">Привлечённые пользователи</p>
+                {referralsQuery.isLoading ? (
+                  <p className="text-sm text-slate-500">Загрузка...</p>
+                ) : !referralsQuery.data || referralsQuery.data.referrals.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-4 text-center bg-slate-50 rounded-xl">
+                    По этой ссылке ещё никто не зарегистрировался
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto -mx-6">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-y border-slate-200 bg-slate-50">
+                          <th className="text-left px-6 py-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Email</th>
+                          <th className="text-left px-6 py-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Дата</th>
+                          <th className="text-left px-6 py-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Тариф</th>
+                          <th className="text-left px-6 py-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">IP</th>
+                          <th className="text-left px-6 py-2 text-xs font-semibold text-slate-600 uppercase tracking-wider">Флаги</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {referralsQuery.data.referrals.map((r) => (
+                          <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                            <td className="px-6 py-2.5 text-sm">
+                              <Link to={`/admin/users/${r.id}`} className={`hover:underline ${r.isBlocked ? 'text-slate-400 line-through' : 'text-[#8C52FF]'}`}>
+                                {r.email}
+                              </Link>
+                            </td>
+                            <td className="px-6 py-2.5 text-sm text-slate-600 whitespace-nowrap">
+                              {r.referredAt ? formatDateTime(r.referredAt) : formatDateTime(r.registeredAt)}
+                            </td>
+                            <td className="px-6 py-2.5 text-sm text-slate-600">
+                              {formatPlanName(r.subscriptionPlan)}
+                            </td>
+                            <td className="px-6 py-2.5 text-sm text-slate-500 font-mono">
+                              {r.referredIp || '-'}
+                            </td>
+                            <td className="px-6 py-2.5 text-sm">
+                              {r.suspicious ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700" title={r.flags.join(', ')}>
+                                  Подозрительно
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

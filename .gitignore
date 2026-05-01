@@ -58,3 +58,9 @@ playwright/.cache/
 
 # BMAD Method
 _bmad-output/
+
+# Superpowers planning artifacts and personal screenshots — kept out of VCS
+.superpowers/
+docs/superpowers/
+docs/screens/
+docs/screensgeneration/
