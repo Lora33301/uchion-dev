@@ -33,6 +33,31 @@ export interface AdminUserDetail extends AdminUser {
     status: 'active' | 'canceled' | 'expired' | 'trial'
     expiresAt: string | null
   }
+  referralCode: string | null
+  referredBy: string | null
+  referredAt: string | null
+  referralsCount: number
+}
+
+export interface AdminReferralUser {
+  id: string
+  email: string
+  name: string | null
+  subscriptionPlan: string
+  hasPaidAccess: boolean
+  referredAt: string | null
+  referredIp: string | null
+  registeredAt: string
+  isBlocked: boolean
+  suspicious: boolean
+  flags: string[]
+}
+
+export interface FetchAdminReferralsResponse {
+  referralCode: string | null
+  total: number
+  paidCount: number
+  referrals: AdminReferralUser[]
 }
 
 export interface AdminGeneration {
@@ -166,6 +191,22 @@ export function blockUser(userId: string): Promise<void> {
 
 export function unblockUser(userId: string): Promise<void> {
   return adminPost(`/api/admin/users/${userId}/unblock`, undefined, 'Не удалось разблокировать пользователя')
+}
+
+// ==================== REFERRALS ====================
+
+export function generateReferralCode(userId: string): Promise<{ referralCode: string; created: boolean }> {
+  return adminPost(
+    `/api/admin/users/${userId}/referral-code`,
+    undefined,
+    'Не удалось создать реферальный код',
+  )
+}
+
+export function fetchUserReferrals(userId: string): Promise<FetchAdminReferralsResponse> {
+  return adminFetch(`/api/admin/users/${userId}/referrals`, {
+    fallbackError: 'Не удалось загрузить список рефералов',
+  })
 }
 
 // ==================== GENERATIONS ====================

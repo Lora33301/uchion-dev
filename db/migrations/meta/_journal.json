@@ -127,6 +127,20 @@
       "when": 1771900000000,
       "tag": "0017_add_school_theme_preset",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1772000000000,
+      "tag": "0018_subject_varchar",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1772100000000,
+      "tag": "0019_add_referrals",
+      "breakpoints": true
     }
   ]
 }

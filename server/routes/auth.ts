@@ -17,6 +17,8 @@ import {
   getPKCECookie,
   getMailingConsentCookie,
   clearMailingConsentCookie,
+  getReferralCookie,
+  clearReferralCookie,
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from '../middleware/cookies.js'
@@ -43,8 +45,11 @@ import {
   requireOAuthRedirectRateLimit,
   requireEmailSendCodeRateLimit,
   requireEmailVerifyCodeRateLimit,
+  checkReferralSignupRateLimit,
+  getClientIp,
   getDailyRegenCount,
 } from '../middleware/rate-limit.js'
+import { normalizeEmail, isValidReferralCode } from '../lib/referral.js'
 import { ApiError } from '../middleware/error-handler.js'
 import {
   logLoginSuccess,
@@ -61,6 +66,13 @@ const router = Router()
 
 // ==================== SHARED: findOrCreateUser ====================
 
+interface ReferralCaptureData {
+  /** Raw referral code from cookie (already validated for shape). */
+  code: string
+  /** Client IP at registration, for fraud review. */
+  ip: string
+}
+
 interface FindOrCreateUserParams {
   email: string
   provider: 'yandex' | 'email'
@@ -69,6 +81,8 @@ interface FindOrCreateUserParams {
   image?: string | null
   emailVerified?: Date | null
   mailingConsent: boolean
+  /** Referral capture data; only applied if a NEW user is created. */
+  referral?: ReferralCaptureData
 }
 
 /**
@@ -98,6 +112,28 @@ async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: s
   }
 
   if (!existing) {
+    // Resolve referral on creation. Errors here (invalid code, self-referral)
+    // never block the signup -- they just skip the attribution.
+    let referredBy: string | null = null
+    let referredAt: Date | null = null
+    let referredIp: string | null = null
+    let referredEmailNorm: string | null = null
+
+    if (params.referral) {
+      const [referrer] = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(and(eq(users.referralCode, params.referral.code), isNull(users.deletedAt)))
+        .limit(1)
+
+      if (referrer && referrer.email !== params.email) {
+        referredBy = referrer.id
+        referredAt = new Date()
+        referredIp = params.referral.ip.slice(0, 64)
+        referredEmailNorm = normalizeEmail(params.email)
+      }
+    }
+
     const [newUser] = await db
       .insert(users)
       .values({
@@ -110,6 +146,10 @@ async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: s
         role: 'user',
         generationsLeft: SUBSCRIPTION_PLANS.free.generationsPerPeriod,
         mailingConsent: params.mailingConsent,
+        referredBy,
+        referredAt,
+        referredIp,
+        referredEmailNorm,
       })
       .returning({ id: users.id, email: users.email, role: users.role })
     return newUser
@@ -143,6 +183,24 @@ async function findOrCreateUser(params: FindOrCreateUserParams): Promise<{ id: s
   }
 
   return { id: existing.id, email: existing.email, role: existing.role }
+}
+
+/**
+ * Read the referral cookie, validate its shape, and apply per-IP rate limiting
+ * before returning the capture payload. Any failure path silently returns null
+ * -- a bad / spammy referral must NEVER block the underlying signup.
+ */
+async function resolveReferralCapture(req: Request): Promise<ReferralCaptureData | null> {
+  const code = getReferralCookie(req)
+  if (!code || !isValidReferralCode(code)) return null
+
+  const rl = await checkReferralSignupRateLimit(req)
+  if (!rl.success) {
+    console.warn('[Referral] IP rate limit exceeded for referral signup, skipping attribution')
+    return null
+  }
+
+  return { code, ip: getClientIp(req) }
 }
 
 // ==================== GET /api/auth/me ====================
@@ -450,6 +508,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
     })
 
     const mailingConsent = getMailingConsentCookie(req)
+    const referral = await resolveReferralCapture(req)
 
     const user = await findOrCreateUser({
       email: oauthUser.email.toLowerCase(),
@@ -458,6 +517,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
       name: oauthUser.name || oauthUser.email.split('@')[0],
       image: oauthUser.image,
       mailingConsent: !!mailingConsent,
+      referral: referral ?? undefined,
     })
 
     const accessToken = createAccessToken({
@@ -469,6 +529,7 @@ router.get('/yandex/callback', async (req: Request, res: Response) => {
     setAuthCookies(res, { accessToken, refreshToken })
     clearOAuthCookies(res)
     clearMailingConsentCookie(res)
+    clearReferralCookie(res)
 
     logOAuthCallbackSuccess(req, user.id, user.email, 'yandex')
 
@@ -626,7 +687,8 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
     .set({ usedAt: new Date() })
     .where(eq(emailCodes.id, record.id))
 
-  // Find or create user
+  // Find or create user (referral captured only if a NEW user is created)
+  const referral = await resolveReferralCapture(req)
   const user = await findOrCreateUser({
     email,
     provider: 'email',
@@ -634,6 +696,7 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
     name: email.split('@')[0],
     emailVerified: new Date(),
     mailingConsent,
+    referral: referral ?? undefined,
   })
 
   const accessToken = createAccessToken({
@@ -643,6 +706,7 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
   const refreshToken = await createRefreshToken(user.id)
 
   setAuthCookies(res, { accessToken, refreshToken })
+  clearReferralCookie(res)
 
   logLoginSuccess(req, user.id, user.email, 'email')
 
