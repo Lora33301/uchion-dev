@@ -33,6 +33,8 @@ export interface AdminUserDetail extends AdminUser {
     status: 'active' | 'canceled' | 'expired' | 'trial'
     expiresAt: string | null
   }
+  subscriptionPlan: string
+  hasPaidAccess: boolean
   referralCode: string | null
   referredBy: string | null
   referredAt: string | null
@@ -191,6 +193,37 @@ export function blockUser(userId: string): Promise<void> {
 
 export function unblockUser(userId: string): Promise<void> {
   return adminPost(`/api/admin/users/${userId}/unblock`, undefined, 'Не удалось разблокировать пользователя')
+}
+
+// ==================== GRANT GENERATIONS / CHANGE PLAN ====================
+
+export type AdminPlanId = 'free' | 'starter' | 'teacher' | 'expert'
+
+export function grantGenerations(
+  userId: string,
+  amount: number,
+): Promise<{ success: boolean; generationsLeft: number }> {
+  return adminPost(
+    `/api/admin/users/${userId}/grant-generations`,
+    { amount },
+    'Не удалось начислить генерации',
+  )
+}
+
+export function changeUserPlan(
+  userId: string,
+  plan: AdminPlanId,
+  options?: { resetGenerations?: boolean; durationDays?: number },
+): Promise<{ success: boolean; plan: AdminPlanId; generationsPerPeriod: number }> {
+  return adminPost(
+    `/api/admin/users/${userId}/change-plan`,
+    {
+      plan,
+      ...(options?.resetGenerations !== undefined && { resetGenerations: options.resetGenerations }),
+      ...(options?.durationDays !== undefined && { durationDays: options.durationDays }),
+    },
+    'Не удалось изменить тариф',
+  )
 }
 
 // ==================== REFERRALS ====================

@@ -7,11 +7,14 @@ import {
   unblockUser,
   generateReferralCode,
   fetchUserReferrals,
+  grantGenerations,
+  changeUserPlan,
   formatProviderName,
   formatRoleName,
   formatGenerationStatus,
   formatDateTime,
   formatDate,
+  type AdminPlanId,
 } from '../../lib/admin-api'
 import { formatSubjectName, formatPlanName } from '../../lib/dashboard-api'
 import { DocumentIcon } from '../../components/ui/Icons'
@@ -110,6 +113,66 @@ export default function AdminUserDetailPage() {
       setActionError(err.message)
     },
   })
+
+  // Grant generations
+  const [grantAmount, setGrantAmount] = useState<string>('10')
+  const [grantSuccess, setGrantSuccess] = useState<string | null>(null)
+  const grantMutation = useMutation({
+    mutationFn: (amount: number) => grantGenerations(id!, amount),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setActionError(null)
+      setGrantSuccess(`Готово. Сейчас генераций: ${data.generationsLeft}`)
+      setTimeout(() => setGrantSuccess(null), 3000)
+    },
+    onError: (err: Error) => setActionError(err.message),
+  })
+
+  // Change plan
+  const [planChoice, setPlanChoice] = useState<AdminPlanId>('starter')
+  const [planResetGens, setPlanResetGens] = useState<boolean>(true)
+  const [planDays, setPlanDays] = useState<string>('30')
+  const [planSuccess, setPlanSuccess] = useState<string | null>(null)
+  const planMutation = useMutation({
+    mutationFn: ({ plan, resetGenerations, durationDays }: { plan: AdminPlanId; resetGenerations: boolean; durationDays: number }) =>
+      changeUserPlan(id!, plan, { resetGenerations, durationDays }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setActionError(null)
+      setPlanSuccess(`Тариф изменён на «${formatPlanName(data.plan)}»`)
+      setTimeout(() => setPlanSuccess(null), 3000)
+    },
+    onError: (err: Error) => setActionError(err.message),
+  })
+
+  const submitGrant = () => {
+    const n = parseInt(grantAmount, 10)
+    if (!Number.isFinite(n) || n === 0) {
+      setActionError('Введите ненулевое число (можно отрицательное для списания)')
+      return
+    }
+    if (n < -1000 || n > 1000) {
+      setActionError('Допустимый диапазон: от -1000 до 1000')
+      return
+    }
+    grantMutation.mutate(n)
+  }
+
+  const submitPlanChange = () => {
+    const days = parseInt(planDays, 10)
+    if (!Number.isFinite(days) || days < 1 || days > 3650) {
+      setActionError('Длительность: от 1 до 3650 дней')
+      return
+    }
+    if (planChoice === 'free') {
+      if (!confirm('Перевести пользователя на бесплатный тариф? Текущая подписка будет помечена как истекшая.')) return
+    } else {
+      if (!confirm(`Установить тариф «${formatPlanName(planChoice)}» на ${days} дн.?${planResetGens ? ` Генерации сбросятся в лимит плана.` : ''}`)) return
+    }
+    planMutation.mutate({ plan: planChoice, resetGenerations: planResetGens, durationDays: days })
+  }
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
   const buildReferralUrl = (code: string): string => {
@@ -278,6 +341,142 @@ export default function AdminUserDetailPage() {
             {actionError}
           </div>
         )}
+      </div>
+
+      {/* Admin actions: grant generations + change plan */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Grant generations */}
+        <div className="glass-container p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-emerald-100 rounded-lg">
+              <BoltIcon className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Начислить генерации</h3>
+              <p className="text-xs text-slate-500">Изменения сразу попадают в БД и видны при генерации</p>
+            </div>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
+                Количество (можно отрицательное)
+              </label>
+              <input
+                type="number"
+                value={grantAmount}
+                onChange={(e) => setGrantAmount(e.target.value)}
+                min={-1000}
+                max={1000}
+                step={1}
+                disabled={grantMutation.isPending || user.isBlocked}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/80 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition disabled:opacity-50"
+              />
+            </div>
+            <div className="flex gap-1">
+              {[5, 10, 30].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setGrantAmount(String(n))}
+                  disabled={grantMutation.isPending || user.isBlocked}
+                  className="px-2.5 py-2.5 text-xs rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 transition"
+                >
+                  +{n}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={submitGrant}
+              disabled={grantMutation.isPending || user.isBlocked}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 disabled:opacity-50 transition whitespace-nowrap"
+            >
+              {grantMutation.isPending ? 'Сохраняем...' : 'Начислить'}
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm text-slate-600">
+            Текущий остаток: <span className="font-semibold text-slate-900">{user.generationsLeft}</span>
+          </p>
+          {grantSuccess && (
+            <p className="mt-2 text-sm text-emerald-600 font-medium">{grantSuccess}</p>
+          )}
+        </div>
+
+        {/* Change plan */}
+        <div className="glass-container p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-[#8C52FF]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Изменить тариф</h3>
+              <p className="text-xs text-slate-500">Текущий: <span className="font-medium text-slate-700">{formatPlanName(user.subscription.plan)}</span></p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Тариф</label>
+              <select
+                value={planChoice}
+                onChange={(e) => setPlanChoice(e.target.value as AdminPlanId)}
+                disabled={planMutation.isPending || user.isBlocked}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/80 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition disabled:opacity-50"
+              >
+                <option value="free">Бесплатный</option>
+                <option value="starter">Начинающий (590 ₽/мес, 30 ген.)</option>
+                <option value="teacher">Методист (890 ₽/мес, 60 ген.)</option>
+                <option value="expert">Эксперт (1590 ₽/мес, 120 ген.)</option>
+              </select>
+            </div>
+
+            {planChoice !== 'free' && (
+              <div>
+                <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
+                  Длительность (дней)
+                </label>
+                <input
+                  type="number"
+                  value={planDays}
+                  onChange={(e) => setPlanDays(e.target.value)}
+                  min={1}
+                  max={3650}
+                  step={1}
+                  disabled={planMutation.isPending || user.isBlocked}
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/80 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-300 transition disabled:opacity-50"
+                />
+              </div>
+            )}
+
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={planResetGens}
+                onChange={(e) => setPlanResetGens(e.target.checked)}
+                disabled={planMutation.isPending || user.isBlocked}
+                className="rounded border-slate-300 text-[#8C52FF] focus:ring-purple-300"
+              />
+              Сбросить остаток генераций на лимит плана
+            </label>
+
+            <button
+              type="button"
+              onClick={submitPlanChange}
+              disabled={planMutation.isPending || user.isBlocked}
+              className="w-full px-4 py-2.5 rounded-xl bg-[#8C52FF] text-white font-medium hover:bg-[#7e47e6] disabled:opacity-50 transition"
+            >
+              {planMutation.isPending ? 'Сохраняем...' : 'Применить тариф'}
+            </button>
+          </div>
+
+          {planSuccess && (
+            <p className="mt-3 text-sm text-emerald-600 font-medium">{planSuccess}</p>
+          )}
+        </div>
       </div>
 
       {/* Details cards */}
