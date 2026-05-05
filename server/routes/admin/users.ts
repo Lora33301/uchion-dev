@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import type { Response } from 'express'
-import { eq, and, isNull, isNotNull, desc, count, like, or, inArray, asc } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, desc, count, like, or, inArray, asc, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../../db/index.js'
 import { users, worksheets, generations, subscriptions, payments, folders, paymentIntents, refreshTokens } from '../../../db/schema.js'
@@ -10,6 +10,7 @@ import { requireRateLimit } from '../../middleware/rate-limit.js'
 import { revokeAllUserTokens } from '../../../api/_lib/auth/tokens.js'
 import { invalidateUserCache } from '../../lib/user-cache.js'
 import { generateReferralCode } from '../../lib/referral.js'
+import { isValidPlanId, getPlanConfig } from '../../../shared/plans.js'
 import type { AuthenticatedRequest } from '../../types.js'
 
 /** Escape LIKE special characters to prevent wildcard injection */
@@ -183,6 +184,8 @@ router.get('/:id', withAdminAuth(async (req: AuthenticatedRequest, res: Response
       provider: users.provider,
       providerId: users.providerId,
       generationsLeft: users.generationsLeft,
+      subscriptionPlan: users.subscriptionPlan,
+      hasPaidAccess: users.hasPaidAccess,
       referralCode: users.referralCode,
       referredBy: users.referredBy,
       referredAt: users.referredAt,
@@ -522,6 +525,189 @@ router.post('/:id/unblock', withAdminAuth(async (req: AuthenticatedRequest, res:
   console.log(`[Admin] User ${id} unblocked by admin ${req.user.id}`)
 
   return res.status(200).json({ success: true })
+}))
+
+// ==================== POST /api/admin/users/:id/grant-generations ====================
+// Adds (or subtracts) generations on the user. Atomic, never goes below zero.
+const GrantGenerationsSchema = z.object({
+  amount: z.number().int().min(-1000).max(1000),
+})
+
+router.post('/:id/grant-generations', withAdminAuth(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params
+
+  if (!id || !uuidRegex.test(id)) {
+    throw ApiError.badRequest('Invalid user ID format')
+  }
+
+  await requireRateLimit(req, {
+    maxRequests: 30,
+    windowSeconds: 60,
+    identifier: `admin:grant-gens:${req.user.id}`,
+  })
+
+  const parse = GrantGenerationsSchema.safeParse(req.body)
+  if (!parse.success) {
+    throw ApiError.validation(parse.error.flatten().fieldErrors)
+  }
+  const { amount } = parse.data
+  if (amount === 0) {
+    throw ApiError.badRequest('Amount cannot be zero')
+  }
+
+  const [target] = await db
+    .select({ id: users.id, generationsLeft: users.generationsLeft, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
+
+  if (!target) {
+    throw ApiError.notFound('User not found')
+  }
+
+  // Atomic update: clamp to 0, never negative.
+  const [updated] = await db
+    .update(users)
+    .set({
+      generationsLeft: sql`GREATEST(${users.generationsLeft} + ${amount}, 0)`,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, id))
+    .returning({ generationsLeft: users.generationsLeft })
+
+  await invalidateUserCache(id)
+
+  console.log(`[Admin] ${amount > 0 ? 'Granted' : 'Removed'} ${Math.abs(amount)} generation(s) for user ${id} by admin ${req.user.id} (now=${updated.generationsLeft})`)
+
+  return res.status(200).json({
+    success: true,
+    generationsLeft: updated.generationsLeft,
+  })
+}))
+
+// ==================== POST /api/admin/users/:id/change-plan ====================
+// Manually change a user's subscription plan from the admin panel.
+// - free: marks subscription as 'expired' (or removes), so paid features stop working.
+// - starter/teacher/expert: upserts active subscription for 30 days, resets generations to plan limit.
+const ChangePlanSchema = z.object({
+  plan: z.enum(['free', 'starter', 'teacher', 'expert']),
+  resetGenerations: z.boolean().optional().default(true),
+  durationDays: z.number().int().min(1).max(3650).optional().default(30),
+})
+
+router.post('/:id/change-plan', withAdminAuth(async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params
+
+  if (!id || !uuidRegex.test(id)) {
+    throw ApiError.badRequest('Invalid user ID format')
+  }
+
+  await requireRateLimit(req, {
+    maxRequests: 20,
+    windowSeconds: 60,
+    identifier: `admin:change-plan:${req.user.id}`,
+  })
+
+  const parse = ChangePlanSchema.safeParse(req.body)
+  if (!parse.success) {
+    throw ApiError.validation(parse.error.flatten().fieldErrors)
+  }
+  const { plan, resetGenerations, durationDays } = parse.data
+
+  if (!isValidPlanId(plan)) {
+    throw ApiError.badRequest('Invalid plan')
+  }
+
+  const [target] = await db
+    .select({ id: users.id, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
+
+  if (!target) {
+    throw ApiError.notFound('User not found')
+  }
+
+  const now = new Date()
+  const planConfig = getPlanConfig(plan)
+
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: subscriptions.id })
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, id))
+      .limit(1)
+
+    if (plan === 'free') {
+      // Demote to free: keep subscription row for history but mark expired.
+      if (existing) {
+        await tx
+          .update(subscriptions)
+          .set({
+            plan: 'free',
+            status: 'expired',
+            generationsPerPeriod: 0,
+            currentPeriodEnd: now,
+            cancelledAt: now,
+            updatedAt: now,
+          })
+          .where(eq(subscriptions.id, existing.id))
+      }
+      const userPatch: Record<string, unknown> = {
+        subscriptionPlan: 'free',
+        updatedAt: now,
+      }
+      if (resetGenerations) {
+        userPatch.generationsLeft = planConfig.generationsPerPeriod
+      }
+      await tx.update(users).set(userPatch).where(eq(users.id, id))
+    } else {
+      // Activate paid plan
+      const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
+      if (existing) {
+        await tx
+          .update(subscriptions)
+          .set({
+            plan,
+            status: 'active',
+            generationsPerPeriod: planConfig.generationsPerPeriod,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            cancelledAt: null,
+            updatedAt: now,
+          })
+          .where(eq(subscriptions.id, existing.id))
+      } else {
+        await tx.insert(subscriptions).values({
+          userId: id,
+          plan,
+          status: 'active',
+          generationsPerPeriod: planConfig.generationsPerPeriod,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        })
+      }
+      const userPatch: Record<string, unknown> = {
+        subscriptionPlan: plan,
+        hasPaidAccess: true,
+        updatedAt: now,
+      }
+      if (resetGenerations) {
+        userPatch.generationsLeft = planConfig.generationsPerPeriod
+      }
+      await tx.update(users).set(userPatch).where(eq(users.id, id))
+    }
+  })
+
+  await invalidateUserCache(id)
+
+  console.log(`[Admin] Plan changed to '${plan}' for user ${id} by admin ${req.user.id} (resetGenerations=${resetGenerations}, durationDays=${durationDays})`)
+
+  return res.status(200).json({
+    success: true,
+    plan,
+    generationsPerPeriod: planConfig.generationsPerPeriod,
+  })
 }))
 
 // ==================== DELETE /api/admin/users/:id/purge ====================
