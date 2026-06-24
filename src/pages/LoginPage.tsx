@@ -102,7 +102,7 @@ export default function LoginPage() {
         if (res.status === 429) {
           setError('Слишком много запросов. Попробуйте позже.')
         } else {
-          setError(typeof data?.error === 'string' ? data.error : 'Не удалось отправить код. Попробуйте позже.')
+          setError(typeof data?.error === 'string' ? data.error : 'Для входа используйте российскую почту: Яндекс, Mail.ru, VK Почта или Rambler.')
         }
       }
     } catch {
