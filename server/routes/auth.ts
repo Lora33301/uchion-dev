@@ -550,6 +550,29 @@ const sendCodeSchema = z.object({
   email: emailSchema,
 })
 
+const ALLOWED_EMAIL_DOMAINS = [
+  'yandex.ru',
+  'ya.ru',
+  'mail.ru',
+  'bk.ru',
+  'inbox.ru',
+  'list.ru',
+  'internet.ru',
+  'rambler.ru',
+  'lenta.ru',
+  'autorambler.ru',
+  'ro.ru',
+  'vk.com',
+]
+
+function isAllowedEmailDomain(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  return !!domain && ALLOWED_EMAIL_DOMAINS.includes(domain)
+}
+
+const russianEmailError =
+  'Для регистрации и входа используйте российскую электронную почту: Яндекс, Mail.ru, VK Почта, Rambler или другой российский почтовый сервис.'
+
 router.post('/email/send-code', async (req: Request, res: Response) => {
   const parsed = sendCodeSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -557,6 +580,10 @@ router.post('/email/send-code', async (req: Request, res: Response) => {
   }
 
   const email = parsed.data.email.toLowerCase()
+
+  if (!isAllowedEmailDomain(email)) {
+  throw ApiError.badRequest(russianEmailError)
+}
 
   // Rate limit: 3 per 10 min per email
   await requireEmailSendCodeRateLimit(req, email)
@@ -628,6 +655,11 @@ router.post('/email/verify-code', async (req: Request, res: Response) => {
   }
 
   const email = parsed.data.email.toLowerCase()
+
+  if (!isAllowedEmailDomain(email)) {
+  throw ApiError.badRequest(russianEmailError)
+}
+  
   const { code } = parsed.data
   const mailingConsent = !!parsed.data.mailingConsent
 
